@@ -1,0 +1,134 @@
+/* --- CONFIGURACIÓN DE PANTALLA GENERAL Y TIPOGRAFÍA --- */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Roboto', sans-serif;
+}
+
+/* Fondo principal, usando un color claro sutil (blanco roto o gris claro) para mejor contraste móvil */
+.stApp {
+    background-color: #f7f7f7; 
+}
+
+/* Titulo principal de la App */
+h1 {
+    color: #008000; /* Verde Agro */
+    text-align: center;
+    border-bottom: 2px solid #008000;
+    padding-bottom: 10px;
+}
+
+/* Subtítulos */
+h3, h4 {
+    color: #4CAF50; /* Verde más claro para subsecciones */
+}
+
+/* --- STREAMLIT WIDGETS Y COLORES DE TEMA --- */
+
+/* Color primario para botones, selectboxes, sliders (verde vibrante) */
+:root {
+    --primary-color: #4CAF50; /* Verde pasto */
+    --secondary-background-color: #e0f2f1; /* Fondo sutil para bloques */
+    --text-color: #333333;
+    --font: 'Roboto', sans-serif;
+}
+
+/* Botones (para que sean grandes y amigables al tacto en el móvil) */
+div.stButton > button {
+    width: 100%;
+    border-radius: 12px;
+    padding: 10px 0;
+    font-weight: bold;
+    font-size: 16px;
+    color: white !important;
+    background-color: var(--primary-color) !important;
+    border-color: var(--primary-color) !important;
+    transition: background-color 0.3s;
+}
+
+div.stButton > button:hover {
+    background-color: #388E3C !important; /* Verde más oscuro al pasar el mouse */
+}
+
+/* Mensajes de Éxito (Verde más oscuro y marcado) */
+div[data-testid="stSuccess"] {
+    background-color: #d4edda;
+    color: #155724;
+    border-left: 5px solid #155724;
+}
+
+/* Mensajes de Información */
+div[data-testid="stInfo"] {
+    background-color: #e0f7fa;
+    color: #006064;
+    border-left: 5px solid #006064;
+}
+
+/* --- ALERTAS Y MÉTRICAS PERSONALIZADAS (desde app.py) --- */
+
+/* Alerta de peligro (rojo fuerte) */
+.alert-danger-custom { 
+    background-color: #f8d7da; 
+    color: #721c24; 
+    padding: 12px; 
+    border-radius: 8px; 
+    font-weight: bold; 
+    border: 1px solid #f5c6cb;
+    margin-top: 10px;
+}
+
+/* Alerta de advertencia (amarillo/naranja) */
+.alert-warning-custom { 
+    background-color: #fff3cd; 
+    color: #856404; 
+    padding: 12px; 
+    border-radius: 8px; 
+    font-weight: bold; 
+    border: 1px solid #ffeeba;
+    margin-top: 10px;
+}
+
+/* Bloque de Información de Métrica (Más limpio y con borde verde) */
+.metrica-info { 
+    border-left: 5px solid var(--primary-color); /* Borde verde */
+    padding: 10px; 
+    margin-bottom: 8px; 
+    background-color: #f1f8e9; /* Fondo muy suave */
+    border-radius: 4px;
+}
+
+/* --- BOTONES DE ENLACE (KP, WINDY) --- */
+/* Mejora la apariencia de los botones generados con Markdown/HTML */
+a > button {
+    margin-top: 5px !important;
+    font-size: 1em !important;
+    width: 100% !important;
+    padding: 10px !important;
+    border-radius: 8px !important;
+}
+
+/* Color específico para NOAA KP (Naranja/Riesgo) */
+a[href*="swpc.noaa.gov"] button {
+    background-color: #ff8c00 !important; /* Naranja Oscuro */
+    border-color: #ff8c00 !important;
+}
+a[href*="swpc.noaa.gov"] button:hover {
+    background-color: #e67e00 !important; 
+}
+
+/* Color específico para Windy (Azul/Viento) */
+a[href*="windy.com"] button {
+    background-color: #1e88e5 !important; /* Azul más fuerte */
+    border-color: #1e88e5 !important;
+}
+a[href*="windy.com"] button:hover {
+    background-color: #005cb2 !important; 
+}
+
+/* Centrar la imagen en la pestaña "Sobre la App" (si decides agregar una) */
+.css-1dp5vir {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
