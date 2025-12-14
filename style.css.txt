@@ -1,0 +1,73 @@
+/*
+ * Archivo: style.css
+ * Autor: Gabriel Carrasco
+ * Función: Estilos personalizados para AgroDrone Ops
+ */
+
+/* 1. Corrección del cuerpo principal para asegurar texto negro y fondo limpio */
+body {
+    color: #000000; /* Forzar color de texto principal a negro */
+    background-color: #f0f2f6; /* Fondo claro de Streamlit */
+}
+
+/* 2. Estilos para el título y encabezados */
+h1 {
+    color: #145A32; /* Verde Oscuro/Agro */
+    font-weight: 700;
+    border-bottom: 3px solid #1A8A3D; /* Línea verde debajo del título principal */
+    padding-bottom: 5px;
+    margin-bottom: 20px;
+}
+
+h2, h3, h4 {
+    color: #1A8A3D;
+    font-weight: 600;
+}
+
+/* 3. Estilos de botones primarios */
+.stButton>button {
+    background-color: #1A8A3D; 
+    color: white !important;
+    border-radius: 8px;
+    padding: 10px 20px;
+    border: none;
+    transition: background-color 0.3s;
+}
+
+.stButton>button:hover {
+    background-color: #145A32;
+    color: white !important;
+}
+
+/* 4. Estilos de pestañas (Tabs) */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 12px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 50px;
+    white-space: nowrap;
+    border-radius: 8px 8px 0 0;
+    color: #1A8A3D; 
+    font-size: 16px;
+    font-weight: 600;
+    background-color: #e6ffe6; /* Fondo ligero para tabs */
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: #1A8A3D; /* Tab activa en verde oscuro */
+    color: white !important;
+}
+
+/* 5. Estilo de métricas (cajas de clima) */
+.stMetric {
+    background-color: #F8F8F8;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+}
+
+/* 6. Estilo para las alertas personalizadas (Asegura legibilidad) */
+.alert-danger-custom, .alert-warning-custom, .success, .warning, .metrica-info {
+    color: #000000 !important; /* Asegurar texto negro en los bloques de alerta */
+}
