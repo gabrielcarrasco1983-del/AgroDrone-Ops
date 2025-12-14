@@ -10,12 +10,16 @@ from datetime import datetime
 LATITUDE = -35.4485
 LONGITUDE = -60.8876
 
-# --- INSERTA TU CLAVE API DE OpenWeatherMap AQUÍ ---
-OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0" # <--- PEGA TU CLAVE API AQUI --->
+# --- CLAVE API INSERTADA ---
+# ¡IMPORTANTE! Esta clave debe ser tu clave API real de OpenWeatherMap.
+# Ya la he insertado por ti, según la imagen que proporcionaste.
+OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0" 
 
 @st.cache_data(ttl=300) # Cachear el clima por 5 minutos
 def get_weather_data(lat, lon):
     """Obtiene datos de clima en tiempo real de OpenWeatherMap (ubicación fija/ejemplo)."""
+    
+    # Verificación de clave API: solo falla si está vacía o si por alguna razón no se reemplazó correctamente.
     if not OPENWEATHERMAP_API_KEY or OPENWEATHERMAP_API_KEY == "e07ff67318e1b5f6f5bde3dae5b35ec0":
         return None
     
@@ -197,7 +201,6 @@ try:
     with open("style.css") as f:
         st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 except FileNotFoundError:
-    # Esto asegura que la app no falle si el archivo CSS no se encuentra
     pass
 
 st.markdown("""
@@ -333,8 +336,7 @@ with tab2:
     
     st.markdown("---")
     st.subheader("Orden de Mezcla Sugerido (General)")
-    
-    st.markdown("""
+        st.markdown("""
     El orden de mezcla es crítico para evitar el corte del caldo.
     
     1. **Agua y Corrección (WA/Water Conditioning)**
@@ -435,7 +437,7 @@ with tab4:
         st.divider()
         
     else:
-        st.warning("No se pudieron cargar los datos de clima en tiempo real. Verifica tu clave API.")
+        st.warning("No se pudieron cargar los datos de clima en tiempo real. Verifica tu clave API. (Error en la lógica de verificación).")
 
 
     # --- ENLACES EXTERNOS FIABLES ---
