@@ -2,11 +2,74 @@ import streamlit as st
 import pandas as pd
 import math
 import io
+import requests 
+from datetime import datetime
+from geopy.geocoders import Nominatim # Importamos geopy para geocodificación
 
-# --- 1. PROCESAMIENTO DE DATOS DEL USUARIO (BASE DE DATOS CSV/PUNTO Y COMA) ---
+# --- CONFIGURACIÓN DE CLIMA y APIs ---
+# Coordenadas por defecto (9 de Julio, Argentina)
+DEFAULT_LATITUDE = -35.4485
+DEFAULT_LONGITUDE = -60.8876
 
-# VADEMÉCUM REVISADO: Se ha reformateado para asegurar que cada campo coincida con el encabezado.
-# NOTA: Los campos DOSIS_MARBETE_MIN y MAX han sido rellenados basándose en los datos originales.
+# --- INSERTA TU CLAVE API DE OpenWeatherMap AQUÍ ---
+OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0" # <--- PEGA TU CLAVE API AQUI --->
+
+# Inicializar Geocodificador
+geolocator = Nominatim(user_agent="agrodrone_app")
+
+@st.cache_data(ttl=3600) # Cachear la geocodificación por 1 hora
+def get_coordinates(city, country="Argentina"):
+    """Convierte nombre de ciudad en Latitud y Longitud."""
+    location_name = f"{city}, {country}"
+    try:
+        location = geolocator.geocode(location_name)
+        if location:
+            return location.latitude, location.longitude, location.address
+        else:
+            return None, None, None
+    except Exception as e:
+        return None, None, None
+
+@st.cache_data(ttl=300) # Cachear el clima por 5 minutos
+def get_weather_data(lat, lon):
+    """Obtiene datos de clima en tiempo real de OpenWeatherMap."""
+    if not OPENWEATHERMAP_API_KEY or OPENWEATHERMAP_API_KEY == "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx":
+        return None
+    
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHERMAP_API_KEY}&units=metric&lang=es"
+    
+    try:
+        response = requests.get(url)
+        response.raise_for_status() 
+        data = response.json()
+        
+        temp_c = data['main']['temp'] 
+        humidity_pc = data['main']['humidity'] 
+        wind_kmh = data['wind']['speed'] * 3.6 
+        weather_desc = data['weather'][0]['description'].capitalize()
+        cloudiness_pc = data['clouds']['all'] 
+        
+        rain_prob = 0
+        if 'lluvia' in weather_desc.lower() or cloudiness_pc > 80:
+             rain_prob = 70
+        elif cloudiness_pc > 50:
+             rain_prob = 30
+        
+        return {
+            "T_Actual": f"{temp_c:.1f} °C",
+            "Humedad_Val": humidity_pc,
+            "Humedad_Str": f"{humidity_pc} %",
+            "Viento_Val": wind_kmh,
+            "Viento_Str": f"{wind_kmh:.1f} km/h",
+            "Descripcion": weather_desc,
+            "Nubosidad_Str": f"{cloudiness_pc} %",
+            "Lluvia_Str": f"{rain_prob} %"
+        }
+        
+    except requests.exceptions.RequestException as e:
+        return None
+
+# --- VADEMÉCUM Y MOCK DATA (sin cambios) ---
 csv_data = """
 PRINCIPIO_ACTIVO;DOSIS_MARBETE_MIN;DOSIS_MARBETE_MAX;UNIDAD_DOSIS;FAMILIA_QUIMICA;TIPO_PREPARADO;ALERTA_COMPATIBILIDAD;ORDEN_MEZCLA
 Glyphosate;0.25;1.5;L/ha;Glicina (EPSPS inhibitor);Herbicida;"Evitar pH alcalino, deriva";Medio
@@ -127,37 +190,29 @@ Spirodiclofen;0.2;0.5;L/ha;Tetramic acid;Acaricida;Rotar;Final
 Etoxazole;0.05;0.15;L/ha;Difenil oxazolina;Acaricida;Rotar;Final
 """
 
-# Inicialización por defecto en caso de que no haya datos
 vademecum = {}
 productos_disponibles = []
 
 try:
-    # Leer el DataFrame con el separador punto y coma (;)
     df = pd.read_csv(io.StringIO(csv_data), sep=";")
-    # Eliminar filas donde no hay Principio Activo
     df = df.dropna(subset=['PRINCIPIO_ACTIVO']) 
     
     if not df.empty:
-        # Convertir a diccionario de diccionarios, usando 'PRINCIPIO_ACTIVO' como clave
         vademecum = df.set_index('PRINCIPIO_ACTIVO').T.to_dict('dict')
         productos_disponibles = sorted(list(vademecum.keys()))
     
 except pd.errors.ParserError as e:
-    st.error(f"Error en el Vademécum (ParserError): {e}. Asegúrate de que **todos los datos** en la variable 'csv_data' estén separados por punto y coma (`;`).")
+    st.error(f"Error en el Vademécum (ParserError): {e}")
     
-# --- MOCK DATA PARA PRONÓSTICO (Debe ser reemplazado por una API real) ---
-weather_data = {
+# --- MOCK DATA para PRONÓSTICO EXTENDIDO ---
+df_weather_extended = pd.DataFrame({
     "Día": ["Hoy", "Vie", "Sáb", "Dom", "Lun", "Mar", "Mié"],
     "Ícono": ["☀️", "🌤️", "☁️", "🌧️", "☀️", "🌤️", "☁️"],
-    "T_Max": [28, 26, 25, 22, 29, 27, 26], # Temperaturas
+    "T_Max": [28, 26, 25, 22, 29, 27, 26],
     "T_Min": [18, 17, 16, 15, 19, 18, 17],
-    "Viento_kmh": [15, 25, 10, 30, 12, 18, 14], # Vientos
-    "KP": [2, 3, 1, 4, 2, 3, 2], # Índice KP
-    "Lluvia_%": [0, 10, 20, 80, 0, 5, 10], # Probabilidad de lluvia
-    "Humedad_%": [55, 60, 65, 85, 50, 55, 60], # Humedad Relativa
-    "Nubes_%": [10, 30, 70, 90, 15, 40, 60], # Nubosidad
-}
-df_weather = pd.DataFrame(weather_data)
+    "Viento_kmh": [15, 25, 10, 30, 12, 18, 14],
+    "Lluvia_%": [0, 10, 20, 80, 0, 5, 10],
+})
 
 
 # --- CONFIGURACIÓN INICIAL DE STREAMLIT ---
@@ -167,29 +222,30 @@ st.markdown("""
     <style>
     .warning { color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px; }
     .success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; }
-    .kp-ok { background-color: #28a745; color: white; padding: 5px; border-radius: 3px; font-weight: bold; }
-    .kp-cuidado { background-color: #ffc107; color: black; padding: 5px; border-radius: 3px; font-weight: bold; }
-    .kp-peligro { background-color: #dc3545; color: white; padding: 5px; border-radius: 3px; font-weight: bold; }
+    .metrica-info { border-left: 5px solid #007bff; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa; }
+    .alert-danger-custom { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; font-weight: bold; }
+    .alert-warning-custom { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🚁 AgroDrone Ops")
 st.write("Calculadora de Caldo y Vademécum Fitosanitario")
 
-# Inicializar estado para productos
 if 'num_productos' not in st.session_state:
     st.session_state.num_productos = 1
+if 'location_name' not in st.session_state:
+    st.session_state.location_name = "9 de Julio, Argentina"
+    st.session_state.lat = DEFAULT_LATITUDE
+    st.session_state.lon = DEFAULT_LONGITUDE
 
-# --- TABS DE NAVEGACIÓN ---
-tab1, tab2, tab3, tab4 = st.tabs(["🧮 Calculadora Caldo", "⛽ Grupo Electrógeno", "📖 Vademécum", "☀️ Tiempo de Vuelo"])
 
-# Función para agregar productos (solución al error de recarga)
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🧮 Calculadora Caldo", "⛽ Grupo Electrógeno", "📖 Vademécum", "☀️ Tiempo de Vuelo", "👤 Sobre la App"])
+
 def add_product():
-    """Función que se llama al presionar el botón para agregar producto."""
     if st.session_state.num_productos < 5:
         st.session_state.num_productos += 1
 
-# --- TAB 1: CALCULADORA MIXER ---
+# --- TAB 1: CALCULADORA MIXER (Se mantiene igual) ---
 with tab1:
     st.header("Armado del Caldo (Mixer)")
     
@@ -207,11 +263,9 @@ with tab1:
 
     st.divider()
     
-    # Datos del Lote
     st.subheader("Datos del Lote")
     hectareas_totales = st.number_input("Hectáreas Totales del Lote", value=20.0, step=1.0)
     
-    # --- PRODUCTOS DINÁMICOS ---
     st.subheader("Productos a Aplicar (Dosis por Hectárea)")
     productos_seleccionados = []
     
@@ -221,7 +275,6 @@ with tab1:
         
         opciones_productos = ["Otro / Personalizado"] + productos_disponibles
         
-        # Selección del producto
         if not productos_disponibles:
              producto_seleccion = cols[0].selectbox("Principio Activo", options=["Otro / Personalizado"], key=f'prod_select_{i}')
         else:
@@ -229,9 +282,7 @@ with tab1:
         
         producto_nombre = producto_seleccion
         
-        # Manejo del nombre si es "Otro / Personalizado" o si el vademécum está vacío
         if producto_seleccion == "Otro / Personalizado" or not productos_disponibles: 
-            # Si el Vademécum está vacío, forzamos al usuario a ingresar un nombre
             default_value = "" if not productos_disponibles else "" 
             producto_nombre = cols[0].text_input("Escribir nombre:", value=default_value, key=f'prod_input_{i}')
             if not producto_nombre:
@@ -247,12 +298,10 @@ with tab1:
                 'dosis_ha': dosis
             })
     
-    # --- BOTÓN PARA AGREGAR PRODUCTOS (Con la función corregida) ---
     if st.session_state.num_productos < 5: 
         st.button("➕ Agregar Producto", on_click=add_product) 
 
             
-    # --- CÁLCULOS Y RESULTADOS ---
     volumen_total_caldo = hectareas_totales * tasa_aplicacion
     
     st.markdown("---")
@@ -266,7 +315,6 @@ with tab1:
     resumen_impresion += f"Volumen Total de Caldo: {volumen_total_caldo:.1f} L\n\n"
     resumen_impresion += "--- INSUMOS TOTALES ---\n"
     
-    # 2. Resultados por Producto
     for producto in productos_seleccionados:
         nombre = producto['nombre']
         dosis_ha = producto['dosis_ha']
@@ -289,7 +337,6 @@ with tab1:
             dosis_remanente = (remanente_volumen / tasa_aplicacion) * dosis_ha
             st.write(f"- En la carga final de **{remanente_volumen:.1f} Litros**: **{dosis_remanente:.2f} {unidad}**")
             
-    # --- BOTÓN DE IMPRESIÓN ---
     st.markdown("---")
     st.download_button(
         label="🖨️ Imprimir Resumen de Aplicación (TXT)",
@@ -298,7 +345,6 @@ with tab1:
         mime='text/plain'
     )
 
-# --- TAB 2: GRUPO ELECTRÓGENO ---
 with tab2:
     st.header("⛽ Cálculo de Combustible para Grupo Electrógeno")
     consumo_gen = st.number_input("Consumo Grupo Electrógeno (Litros/ha de aplicación)", value=1.0, step=0.1) 
@@ -321,7 +367,6 @@ with tab2:
     7. **Completar con el resto de agua**
     """)
 
-# --- TAB 3: VADEMECUM ---
 with tab3:
     st.header("🔍 Vademécum Fitosanitario")
     
@@ -334,14 +379,12 @@ with tab3:
             data = vademecum[busqueda]
             st.markdown(f"### {busqueda}")
             
-            # NOTA: Manejo de dosis que puedan ser 'dosis segun etiqueta' (ej: 0 en min/max)
             dosis_min = data['DOSIS_MARBETE_MIN']
             dosis_max = data['DOSIS_MARBETE_MAX']
             unidad_dosis = data['UNIDAD_DOSIS']
             
-            # Formateo condicional de la dosis
             if isinstance(dosis_min, (int, float)) and isinstance(dosis_max, (int, float)) and dosis_min == 0 and dosis_max == 0:
-                dosis_str = unidad_dosis # Muestra 'dosis segun etiqueta' si es el caso
+                dosis_str = unidad_dosis
             else:
                 dosis_str = f"{dosis_min} - {dosis_max} {unidad_dosis}"
 
@@ -361,44 +404,110 @@ with tab3:
             st.info("Selecciona un principio activo de la lista para ver su ficha técnica, dosis de marbete y alertas de mezcla.")
     else:
         st.warning("⚠️ **Vademécum no cargado/vacío.**")
-        st.markdown("Si la aplicación no arranca o sigue dando errores, el problema está en la **estructura de datos** de la variable `csv_data`.")
 
 
-# --- TAB 4: TIEMPO DE VUELO ---
+# --- TAB 4: TIEMPO DE VUELO (Geolocalización y KP Link) ---
 with tab4:
-    st.header("☀️ Pronóstico de Condiciones para Vuelo")
-    st.caption("Los datos mostrados son **simulados (Mock Data)**. Para tener datos en tiempo real se requiere integración con APIs meteorológicas.")
+    st.header("☀️ Condiciones para Aplicación (Tiempo Real)")
     
-    # --- PROMPT VUELO KP ---
-    st.markdown("### 🛰️ Índice Geomagnético KP")
-    kp_actual = df_weather.iloc[0]['KP']
-    if kp_actual <= 3:
-        kp_html = f'<div class="kp-ok">Índice KP actual: {kp_actual} (Óptimo para GPS)</div>'
-    elif kp_actual <= 5:
-        kp_html = f'<div class="kp-cuidado">Índice KP actual: {kp_actual} (Precaución - Puede haber interrupciones leves de GPS)</div>'
-    else:
-        kp_html = f'<div class="kp-peligro">Índice KP actual: {kp_actual} (PELIGRO - Riesgo de pérdida de GPS. Evitar vuelos)</div>'
-
-    st.markdown(kp_html, unsafe_allow_html=True)
-    st.write("El Índice KP mide la actividad geomagnética que afecta la precisión del GPS. Se recomienda volar con KP ≤ 4.")
+    # --- Selección de Ubicación ---
+    st.subheader("🌐 Ubicación de Trabajo")
+    col_loc, col_btn = st.columns([0.7, 0.3])
     
+    city_input = col_loc.text_input("Ingresar Localidad/Partido (Ej: Agustín Mosconi)", value=st.session_state.location_name, key='city_input')
+    
+    if col_btn.button("Buscar Clima"):
+        if city_input:
+            lat, lon, address = get_coordinates(city_input)
+            if lat and lon:
+                st.session_state.lat = lat
+                st.session_state.lon = lon
+                st.session_state.location_name = city_input
+                st.success(f"Ubicación encontrada: {address} ({lat:.2f}, {lon:.2f})")
+            else:
+                st.error("No se encontraron coordenadas para esa localidad. Intente con el nombre del partido o ciudad principal (Ej: 9 de Julio).")
+        
+    st.caption(f"Clima actual para: **{st.session_state.location_name}**")
+    st.caption(f"Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
     st.divider()
+
     
-    # --- PRONÓSTICO 7 DÍAS (Barra abajo) ---
-    st.markdown("### Pronóstico Extendido (7 días)")
-    cols = st.columns(len(df_weather))
+    # --- Obtener y Mostrar Clima ---
+    current_data = get_weather_data(st.session_state.lat, st.session_state.lon)
     
-    for i, row in df_weather.iterrows():
+    if current_data:
+        st.markdown("### 📋 Condiciones Críticas")
+        st.markdown(f"**Condición General:** {current_data['Descripcion']}")
+        
+        dcols = st.columns(4)
+        dcols[0].metric("Temperatura Actual", current_data['T_Actual'])
+        dcols[1].metric("Humedad Relativa", current_data['Humedad_Str'])
+        dcols[2].metric("Viento", current_data['Viento_Str'])
+        dcols[3].metric("Prob. Lluvia", current_data['Lluvia_Str'])
+        
+        # --- LÓGICA DE ALERTA DE VUELO ---
+        wind_speed_val = current_data['Viento_Val']
+        humidity_val = current_data['Humedad_Val']
+        
+        alerta_viento = ""
+        alerta_humedad = ""
+
+        if wind_speed_val > 20.0:
+            alerta_viento = f"**❌ Viento Excesivo:** {current_data['Viento_Str']}. Vuelo NO Apto (Alto riesgo de deriva)."
+        elif wind_speed_val > 15.0:
+            alerta_viento = f"**⚠️ Precaución Viento:** {current_data['Viento_Str']}. Monitorear ráfagas."
+        else:
+            alerta_viento = f"**✅ Viento Óptimo:** {current_data['Viento_Str']}."
+
+        if humidity_val < 50:
+            alerta_humedad = f"**⚠️ Humedad Baja:** {current_data['Humedad_Str']}. Riesgo de evaporación rápida del caldo."
+        elif humidity_val > 90:
+            alerta_humedad = f"**⚠️ Humedad Alta:** {current_data['Humedad_Str']}. Riesgo de escurrimiento (run-off)."
+        else:
+            alerta_humedad = f"**✅ Humedad Aceptable:** {current_data['Humedad_Str']}."
+
+        st.markdown("---")
+        st.markdown(f'<div class="metrica-info">{alerta_viento}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metrica-info">{alerta_humedad}</div>', unsafe_allow_html=True)
+
+        if wind_speed_val > 20.0 or humidity_val < 30 or humidity_val > 95:
+             st.markdown('<div class="alert-danger-custom">🔴 RECOMENDACIÓN: DETENER LA APLICACIÓN. Condiciones CRÍTICAS.</div>', unsafe_allow_html=True)
+        else:
+             st.markdown('<div class="success">🟢 RECOMENDACIÓN: Condiciones favorables para aplicar. (Mantener vigilancia).</div>', unsafe_allow_html=True)
+        
+        st.divider()
+        
+    else:
+        st.warning("No se pudieron cargar los datos de clima en tiempo real. Verifica tu clave API y conexión a internet.")
+
+    # --- KP Link ---
+    st.markdown("### 🛰️ Índice Geomagnético KP (Riesgo GPS)")
+    st.markdown("El Índice KP predice la actividad geomagnética, la cual puede afectar la precisión y estabilidad del GPS del dron.")
+    st.markdown(
+        """
+        <a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">
+            <button style="background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
+                Ver Pronóstico KP en NOAA (Fuente Oficial)
+            </button>
+        </a>
+        """, unsafe_allow_html=True
+    )
+    st.divider()
+
+    # --- PRONÓSTICO 7 DÍAS (MOCK DATA) ---
+    st.markdown("### Pronóstico Extendido (7 días - Datos Simulados)")
+    st.info("Este pronóstico es estático.")
+    cols = st.columns(len(df_weather_extended))
+    
+    for i, row in df_weather_extended.iterrows():
         with cols[i]:
             st.markdown(f"**{row['Día']}**")
             st.markdown(f"## {row['Ícono']}")
             st.markdown(f"**{row['T_Max']}°** / {row['T_Min']}°")
             
-            # Icono de viento
             wind_icon = "💨" if row['Viento_kmh'] > 20 else "🌬️"
             st.markdown(f"{wind_icon} {row['Viento_kmh']} km/h")
             
-            # Icono de lluvia
             if row['Lluvia_%'] >= 50:
                 rain_icon = "☔"
             elif row['Lluvia_%'] > 0:
@@ -407,25 +516,36 @@ with tab4:
                 rain_icon = "🚫"
             st.markdown(f"{rain_icon} {row['Lluvia_%']}%")
             
-            # Colorear según condición de vuelo (ejemplo simple)
             if row['Viento_kmh'] > 25 or row['Lluvia_%'] >= 50:
-                 st.error("NO apto")
+                 st.markdown('<div class="alert-danger-custom">❌ NO apto</div>', unsafe_allow_html=True)
             elif row['Viento_kmh'] > 15:
-                st.warning("Precaución")
+                st.markdown('<div class="alert-warning-custom">🟡 Precaución</div>', unsafe_allow_html=True)
             else:
-                st.success("Apto")
+                st.markdown('<div class="success">✅ Apto</div>', unsafe_allow_html=True)
             
-    st.divider()
 
-    # --- DETALLE POR DÍA (usando el día actual para ejemplo) ---
-    st.markdown("### 📋 Detalles del Día Actual")
-    current_data = df_weather.iloc[0]
+# --- TAB 5: SOBRE LA APP (Nuevo) ---
+with tab5:
+    st.header("👤 Sobre AgroDrone Ops")
+    st.image("https://i.imgur.com/uTj6n0y.png", caption="Desarrollado con pasión por el agro.")
     
-    dcols = st.columns(4)
-    dcols[0].metric("Temperatura Máx", f"{current_data['T_Max']} °C")
-    dcols[1].metric("Humedad Relativa", f"{current_data['Humedad_%']} %")
-    dcols[2].metric("Viento", f"{current_data['Viento_kmh']} km/h", "Ideal para Vuelo")
-    dcols[3].metric("Nubosidad", f"{current_data['Nubes_%']} %")
+    st.markdown("""
+    ### Un Saludo de Gabriel Carrasco
     
-    st.markdown("---")
-    st.metric("Probabilidad de Lluvia", f"{current_data['Lluvia_%']} %")
+    ¡Gracias por usar AgroDrone Ops!
+    
+    Esta aplicación nació de la necesidad práctica de tener herramientas rápidas y confiables en el campo, sin depender de papeles o cálculos complejos bajo el sol. Es una **herramienta de recreación y ayuda** diseñada por un aplicador para aplicadores.
+    
+    Está pensada para:
+    * **Simplificar el armado del Caldo (Mixer):** Asegurando las dosis correctas por carga.
+    * **Maximizar la eficiencia:** Calculando combustible y verificando las condiciones climáticas críticas.
+    * **Seguridad:** Ofreciendo una guía de mezcla y un acceso rápido al vital Índice KP.
+    
+    **El objetivo no es reemplazar la experiencia del aplicador, sino complementarla.** Siempre utiliza los datos de marbete del fabricante como guía principal y verifica todas las condiciones in situ antes de cada vuelo.
+    
+    ---
+    
+    **Desarrollado por:** Gabriel Carrasco
+    
+    *Tecnología al servicio de la aplicación inteligente.*
+    """)
