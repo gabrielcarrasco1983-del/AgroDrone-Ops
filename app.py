@@ -4,35 +4,19 @@ import math
 import io
 import requests 
 from datetime import datetime
-from geopy.geocoders import Nominatim # Importamos geopy para geocodificación
+# Ya no importamos geopy
 
 # --- CONFIGURACIÓN DE CLIMA y APIs ---
-# Coordenadas por defecto (9 de Julio, Argentina)
-DEFAULT_LATITUDE = -35.4485
-DEFAULT_LONGITUDE = -60.8876
+# Usaremos 9 de Julio como ubicación fija de "ejemplo local"
+LATITUDE = -35.4485
+LONGITUDE = -60.8876
 
 # --- INSERTA TU CLAVE API DE OpenWeatherMap AQUÍ ---
 OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0" # <--- PEGA TU CLAVE API AQUI --->
 
-# Inicializar Geocodificador
-geolocator = Nominatim(user_agent="agrodrone_app")
-
-@st.cache_data(ttl=3600) # Cachear la geocodificación por 1 hora
-def get_coordinates(city, country="Argentina"):
-    """Convierte nombre de ciudad en Latitud y Longitud."""
-    location_name = f"{city}, {country}"
-    try:
-        location = geolocator.geocode(location_name)
-        if location:
-            return location.latitude, location.longitude, location.address
-        else:
-            return None, None, None
-    except Exception as e:
-        return None, None, None
-
 @st.cache_data(ttl=300) # Cachear el clima por 5 minutos
 def get_weather_data(lat, lon):
-    """Obtiene datos de clima en tiempo real de OpenWeatherMap."""
+    """Obtiene datos de clima en tiempo real de OpenWeatherMap (ubicación fija/ejemplo)."""
     if not OPENWEATHERMAP_API_KEY or OPENWEATHERMAP_API_KEY == "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx":
         return None
     
@@ -63,7 +47,8 @@ def get_weather_data(lat, lon):
             "Viento_Str": f"{wind_kmh:.1f} km/h",
             "Descripcion": weather_desc,
             "Nubosidad_Str": f"{cloudiness_pc} %",
-            "Lluvia_Str": f"{rain_prob} %"
+            "Lluvia_Str": f"{rain_prob} %",
+            "Ciudad": data['name']
         }
         
     except requests.exceptions.RequestException as e:
@@ -204,16 +189,6 @@ try:
 except pd.errors.ParserError as e:
     st.error(f"Error en el Vademécum (ParserError): {e}")
     
-# --- MOCK DATA para PRONÓSTICO EXTENDIDO ---
-df_weather_extended = pd.DataFrame({
-    "Día": ["Hoy", "Vie", "Sáb", "Dom", "Lun", "Mar", "Mié"],
-    "Ícono": ["☀️", "🌤️", "☁️", "🌧️", "☀️", "🌤️", "☁️"],
-    "T_Max": [28, 26, 25, 22, 29, 27, 26],
-    "T_Min": [18, 17, 16, 15, 19, 18, 17],
-    "Viento_kmh": [15, 25, 10, 30, 12, 18, 14],
-    "Lluvia_%": [0, 10, 20, 80, 0, 5, 10],
-})
-
 
 # --- CONFIGURACIÓN INICIAL DE STREAMLIT ---
 st.set_page_config(page_title="AgroDrone Ops", page_icon="🚁", layout="centered")
@@ -233,11 +208,6 @@ st.write("Calculadora de Caldo y Vademécum Fitosanitario")
 
 if 'num_productos' not in st.session_state:
     st.session_state.num_productos = 1
-if 'location_name' not in st.session_state:
-    st.session_state.location_name = "9 de Julio, Argentina"
-    st.session_state.lat = DEFAULT_LATITUDE
-    st.session_state.lon = DEFAULT_LONGITUDE
-
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🧮 Calculadora Caldo", "⛽ Grupo Electrógeno", "📖 Vademécum", "☀️ Tiempo de Vuelo", "👤 Sobre la App"])
 
@@ -245,7 +215,8 @@ def add_product():
     if st.session_state.num_productos < 5:
         st.session_state.num_productos += 1
 
-# --- TAB 1: CALCULADORA MIXER (Se mantiene igual) ---
+# --- TABS 1, 2, 3 (Se mantienen sin cambios) ---
+
 with tab1:
     st.header("Armado del Caldo (Mixer)")
     
@@ -406,38 +377,15 @@ with tab3:
         st.warning("⚠️ **Vademécum no cargado/vacío.**")
 
 
-# --- TAB 4: TIEMPO DE VUELO (Geolocalización y KP Link) ---
+# --- TAB 4: TIEMPO DE VUELO (Simplificado y con Enlaces) ---
 with tab4:
-    st.header("☀️ Condiciones para Aplicación (Tiempo Real)")
+    st.header("☀️ Condiciones para Aplicación")
     
-    # --- Selección de Ubicación ---
-    st.subheader("🌐 Ubicación de Trabajo")
-    col_loc, col_btn = st.columns([0.7, 0.3])
-    
-    city_input = col_loc.text_input("Ingresar Localidad/Partido (Ej: Agustín Mosconi)", value=st.session_state.location_name, key='city_input')
-    
-    if col_btn.button("Buscar Clima"):
-        if city_input:
-            lat, lon, address = get_coordinates(city_input)
-            if lat and lon:
-                st.session_state.lat = lat
-                st.session_state.lon = lon
-                st.session_state.location_name = city_input
-                st.success(f"Ubicación encontrada: {address} ({lat:.2f}, {lon:.2f})")
-            else:
-                st.error("No se encontraron coordenadas para esa localidad. Intente con el nombre del partido o ciudad principal (Ej: 9 de Julio).")
-        
-    st.caption(f"Clima actual para: **{st.session_state.location_name}**")
-    st.caption(f"Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
-    st.divider()
-
-    
-    # --- Obtener y Mostrar Clima ---
-    current_data = get_weather_data(st.session_state.lat, st.session_state.lon)
+    current_data = get_weather_data(LATITUDE, LONGITUDE)
     
     if current_data:
-        st.markdown("### 📋 Condiciones Críticas")
-        st.markdown(f"**Condición General:** {current_data['Descripcion']}")
+        st.subheader(f"📋 Condiciones Críticas (Ejemplo Local: {current_data['Ciudad']})")
+        st.caption(f"Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
         
         dcols = st.columns(4)
         dcols[0].metric("Temperatura Actual", current_data['T_Actual'])
@@ -478,56 +426,44 @@ with tab4:
         st.divider()
         
     else:
-        st.warning("No se pudieron cargar los datos de clima en tiempo real. Verifica tu clave API y conexión a internet.")
+        st.warning("No se pudieron cargar los datos de clima en tiempo real. Verifica tu clave API.")
 
-    # --- KP Link ---
-    st.markdown("### 🛰️ Índice Geomagnético KP (Riesgo GPS)")
-    st.markdown("El Índice KP predice la actividad geomagnética, la cual puede afectar la precisión y estabilidad del GPS del dron.")
-    st.markdown(
-        """
-        <a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">
-            <button style="background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
-                Ver Pronóstico KP en NOAA (Fuente Oficial)
-            </button>
-        </a>
-        """, unsafe_allow_html=True
-    )
-    st.divider()
 
-    # --- PRONÓSTICO 7 DÍAS (MOCK DATA) ---
-    st.markdown("### Pronóstico Extendido (7 días - Datos Simulados)")
-    st.info("Este pronóstico es estático.")
-    cols = st.columns(len(df_weather_extended))
+    # --- ENLACES EXTERNOS FIABLES (Reemplazan la geolocalización lenta) ---
+    st.markdown("### 🔗 Pronóstico Extendido y Condiciones de Vuelo")
+    st.markdown("Para condiciones específicas de tu lote y pronóstico extendido (T°, Lluvia, Viento), utiliza estas fuentes confiables:")
     
-    for i, row in df_weather_extended.iterrows():
-        with cols[i]:
-            st.markdown(f"**{row['Día']}**")
-            st.markdown(f"## {row['Ícono']}")
-            st.markdown(f"**{row['T_Max']}°** / {row['T_Min']}°")
-            
-            wind_icon = "💨" if row['Viento_kmh'] > 20 else "🌬️"
-            st.markdown(f"{wind_icon} {row['Viento_kmh']} km/h")
-            
-            if row['Lluvia_%'] >= 50:
-                rain_icon = "☔"
-            elif row['Lluvia_%'] > 0:
-                rain_icon = "🌦️"
-            else:
-                rain_icon = "🚫"
-            st.markdown(f"{rain_icon} {row['Lluvia_%']}%")
-            
-            if row['Viento_kmh'] > 25 or row['Lluvia_%'] >= 50:
-                 st.markdown('<div class="alert-danger-custom">❌ NO apto</div>', unsafe_allow_html=True)
-            elif row['Viento_kmh'] > 15:
-                st.markdown('<div class="alert-warning-custom">🟡 Precaución</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="success">✅ Apto</div>', unsafe_allow_html=True)
-            
+    col_kp, col_weather = st.columns(2)
 
-# --- TAB 5: SOBRE LA APP (Nuevo) ---
+    with col_kp:
+        st.markdown("**🛰️ Riesgo Geomagnético (KP)**")
+        st.markdown(
+            """
+            <a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">
+                <button style="background-color: #ff9900; color: white; padding: 10px 10px; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
+                    Ver KP en NOAA
+                </button>
+            </a>
+            """, unsafe_allow_html=True
+        )
+    
+    with col_weather:
+        st.markdown("**⛈️ Pronóstico Meteorológico Completo**")
+        st.markdown(
+            """
+            <a href="https://www.windy.com/?-35.950,-60.890,10" target="_blank">
+                <button style="background-color: #007bff; color: white; padding: 10px 10px; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
+                    Ver Windy.com (Viento/Precipitación)
+                </button>
+            </a>
+            """, unsafe_allow_html=True
+        )
+
+# --- TAB 5: SOBRE LA APP (Imagen rota eliminada) ---
 with tab5:
     st.header("👤 Sobre AgroDrone Ops")
-    st.image("https://i.imgur.com/uTj6n0y.png", caption="Desarrollado con pasión por el agro.")
+    # Imagen rota eliminada, puedes insertar una imagen local o un logo de Streamlit si lo deseas
+    # st.image("URL_NUEVA_IMAGEN_PERMANENTE", caption="Desarrollado con pasión por el agro.")
     
     st.markdown("""
     ### Un Saludo de Gabriel Carrasco
@@ -539,7 +475,7 @@ with tab5:
     Está pensada para:
     * **Simplificar el armado del Caldo (Mixer):** Asegurando las dosis correctas por carga.
     * **Maximizar la eficiencia:** Calculando combustible y verificando las condiciones climáticas críticas.
-    * **Seguridad:** Ofreciendo una guía de mezcla y un acceso rápido al vital Índice KP.
+    * **Seguridad:** Ofreciendo una guía de mezcla y un acceso rápido a pronósticos externos confiables (Viento, Lluvia, Índice KP).
     
     **El objetivo no es reemplazar la experiencia del aplicador, sino complementarla.** Siempre utiliza los datos de marbete del fabricante como guía principal y verifica todas las condiciones in situ antes de cada vuelo.
     
