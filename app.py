@@ -11,27 +11,28 @@ LATITUDE = -35.4485
 LONGITUDE = -60.8876
 
 # --- CLAVE API INSERTADA ---
-# ¡IMPORTANTE! Esta clave debe ser tu clave API real de OpenWeatherMap.
-# Ya la he insertado por ti, según la imagen que proporcionaste.
+# La clave API proporcionada ha sido insertada aquí.
 OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0" 
 
 @st.cache_data(ttl=300) # Cachear el clima por 5 minutos
 def get_weather_data(lat, lon):
     """Obtiene datos de clima en tiempo real de OpenWeatherMap (ubicación fija/ejemplo)."""
     
-    # Verificación de clave API: solo falla si está vacía o si por alguna razón no se reemplazó correctamente.
-    if not OPENWEATHERMAP_API_KEY or OPENWEATHERMAP_API_KEY == "e07ff67318e1b5f6f5bde3dae5b35ec0":
+    # Verifica que la clave API no esté vacía.
+    if not OPENWEATHERMAP_API_KEY:
         return None
     
     url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHERMAP_API_KEY}&units=metric&lang=es"
     
     try:
         response = requests.get(url)
+        # Esto generará un error si la solicitud HTTP falla (ej. clave API incorrecta o límite excedido)
         response.raise_for_status() 
         data = response.json()
         
         temp_c = data['main']['temp'] 
         humidity_pc = data['main']['humidity'] 
+        # Convertir m/s a km/h
         wind_kmh = data['wind']['speed'] * 3.6 
         weather_desc = data['weather'][0]['description'].capitalize()
         cloudiness_pc = data['clouds']['all'] 
@@ -55,9 +56,11 @@ def get_weather_data(lat, lon):
         }
         
     except requests.exceptions.RequestException as e:
+        # Esto captura cualquier error de conexión o HTTP (como 401 si la clave es incorrecta)
+        st.error(f"Error al obtener datos de clima: {e}")
         return None
 
-# --- VADEMÉCUM DATA (Triple comilla de cierre revisada) ---
+# --- VADEMÉCUM DATA ---
 csv_data = """
 PRINCIPIO_ACTIVO;DOSIS_MARBETE_MIN;DOSIS_MARBETE_MAX;UNIDAD_DOSIS;FAMILIA_QUIMICA;TIPO_PREPARADO;ALERTA_COMPATIBILIDAD;ORDEN_MEZCLA
 Glyphosate;0.25;1.5;L/ha;Glicina (EPSPS inhibitor);Herbicida;"Evitar pH alcalino, deriva";Medio
@@ -203,9 +206,9 @@ try:
 except FileNotFoundError:
     pass
 
+# CSS de sobreescritura interno
 st.markdown("""
     <style>
-    /* Clases de Streamlit que requieren CSS interno para sobreescritura */
     .warning { color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px; }
     .success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; }
     .metrica-info { border-left: 5px solid #007bff; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa; }
@@ -336,7 +339,8 @@ with tab2:
     
     st.markdown("---")
     st.subheader("Orden de Mezcla Sugerido (General)")
-        st.markdown("""
+    
+    st.markdown("""
     El orden de mezcla es crítico para evitar el corte del caldo.
     
     1. **Agua y Corrección (WA/Water Conditioning)**
@@ -392,6 +396,7 @@ with tab3:
 with tab4:
     st.header("☀️ Condiciones para Aplicación")
     
+    # Intenta obtener los datos del clima
     current_data = get_weather_data(LATITUDE, LONGITUDE)
     
     if current_data:
@@ -437,7 +442,7 @@ with tab4:
         st.divider()
         
     else:
-        st.warning("No se pudieron cargar los datos de clima en tiempo real. Verifica tu clave API. (Error en la lógica de verificación).")
+        st.warning("No se pudieron cargar los datos de clima en tiempo real. Esto puede deberse a un problema de conexión o a un error con la clave API.")
 
 
     # --- ENLACES EXTERNOS FIABLES ---
