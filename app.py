@@ -208,10 +208,7 @@ except FileNotFoundError:
 st.markdown("""
     <style>
     /* 🔴 FORZAR TODO EL TEXTO A NEGRO (Solución para móvil/fondo claro) */
-    * { 
-        color: #000000 !important; 
-    }
-    
+        
     .warning { color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px; }
     .success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; }
     .metrica-info { border-left: 5px solid #007bff; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa; }
