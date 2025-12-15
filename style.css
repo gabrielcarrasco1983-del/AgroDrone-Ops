@@ -7,7 +7,7 @@
 /* 1. Corrección del cuerpo principal para asegurar texto negro y fondo limpio */
 body {
     color: #000000 !important; /* Forzar color de texto principal a negro */
-    background-color: #f0f2f6; /* Fondo claro de Streamlit */
+    background-color: #FFFFFF; /* CAMBIO CLAVE: Fondo Blanco Puro para máximo contraste */
 }
 
 /* --- SOLUCIÓN PARA INPUTS Y SELECTORES (Texto dentro de las cajas) --- */
