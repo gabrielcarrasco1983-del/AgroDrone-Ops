@@ -10,8 +10,7 @@ from datetime import datetime
 LATITUDE = -35.4485
 LONGITUDE = -60.8876
 
-# --- CLAVE API INSERTADA ---
-# La clave API proporcionada ha sido insertada aquí.
+# CLAVE API
 OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0" 
 
 @st.cache_data(ttl=300) # Cachear el clima por 5 minutos
@@ -57,7 +56,7 @@ def get_weather_data(lat, lon):
         st.error(f"Error al obtener datos de clima: {e}")
         return None
 
-# --- VADEMÉCUM DATA (omitiendo el bloque de datos para concisión, asumiendo que está intacto) ---
+# --- VADEMÉCUM DATA (mantener el bloque de datos completo) ---
 csv_data = """
 PRINCIPIO_ACTIVO;DOSIS_MARBETE_MIN;DOSIS_MARBETE_MAX;UNIDAD_DOSIS;FAMILIA_QUIMICA;TIPO_PREPARADO;ALERTA_COMPATIBILIDAD;ORDEN_MEZCLA
 Glyphosate;0.25;1.5;L/ha;Glicina (EPSPS inhibitor);Herbicida;"Evitar pH alcalino, deriva";Medio
@@ -204,19 +203,20 @@ try:
 except FileNotFoundError:
     pass
 
-# CSS de sobreescritura interno: ¡SOLUCIÓN DE COLOR NEGRO!
+# CSS de sobreescritura interno: ¡SOLUCIÓN DE COLOR NEGRO Y FONDO BLANCO!
 st.markdown("""
     <style>
-    /* 🔴 FORZAR TODO EL TEXTO A NEGRO (Solución para móvil/fondo claro) */
-        
+    /* 🔴 Solución de compatibilidad de color para móvil */
+    .stApp { 
+        color: #000000 !important; 
+        background-color: #FFFFFF !important; /* <--- FONDO BLANCO PURO AQUI */
+    }
+    
     .warning { color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px; }
     .success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; }
     .metrica-info { border-left: 5px solid #007bff; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa; }
     .alert-danger-custom { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; font-weight: bold; }
     .alert-warning-custom { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; font-weight: bold; }
-    
-    /* Asegurar que los componentes de Streamlit hereden el color negro */
-    .stApp { color: #000000 !important; }
     
     </style>
     """, unsafe_allow_html=True)
@@ -343,9 +343,8 @@ with tab2:
     
     st.markdown("---")
     st.subheader("Orden de Mezcla Sugerido (General)")
-    # Imagen de un diagrama de mezcla
     st.markdown("""
-    El orden de mezcla es crítico para evitar el corte del caldo.
+    El orden de mezcla es crítico para evitar el corte del caldo. 
     
     1. **Agua y Corrección (WA/Water Conditioning)**
     2. **Sólidos Secos (WG/SG/WP)**
