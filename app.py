@@ -18,7 +18,6 @@ OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0"
 def get_weather_data(lat, lon):
     """Obtiene datos de clima en tiempo real de OpenWeatherMap (ubicación fija/ejemplo)."""
     
-    # Verifica que la clave API no esté vacía.
     if not OPENWEATHERMAP_API_KEY:
         return None
     
@@ -26,7 +25,6 @@ def get_weather_data(lat, lon):
     
     try:
         response = requests.get(url)
-        # Esto generará un error si la solicitud HTTP falla (ej. clave API incorrecta o límite excedido)
         response.raise_for_status() 
         data = response.json()
         
@@ -56,11 +54,10 @@ def get_weather_data(lat, lon):
         }
         
     except requests.exceptions.RequestException as e:
-        # Esto captura cualquier error de conexión o HTTP (como 401 si la clave es incorrecta)
         st.error(f"Error al obtener datos de clima: {e}")
         return None
 
-# --- VADEMÉCUM DATA ---
+# --- VADEMÉCUM DATA (omitiendo el bloque de datos para concisión, asumiendo que está intacto) ---
 csv_data = """
 PRINCIPIO_ACTIVO;DOSIS_MARBETE_MIN;DOSIS_MARBETE_MAX;UNIDAD_DOSIS;FAMILIA_QUIMICA;TIPO_PREPARADO;ALERTA_COMPATIBILIDAD;ORDEN_MEZCLA
 Glyphosate;0.25;1.5;L/ha;Glicina (EPSPS inhibitor);Herbicida;"Evitar pH alcalino, deriva";Medio
@@ -197,7 +194,8 @@ except pd.errors.ParserError as e:
     
 
 # --- CONFIGURACIÓN INICIAL DE STREAMLIT ---
-st.set_page_config(page_title="AgroDrone Ops", page_icon="🚁", layout="centered")
+# Apunta al ícono que debes subir a la raíz del repositorio.
+st.set_page_config(page_title="AgroDrone Ops", page_icon="favicon.png", layout="centered")
 
 # CARGAR CSS ESTÉTICO EXTERNO
 try:
@@ -206,14 +204,23 @@ try:
 except FileNotFoundError:
     pass
 
-# CSS de sobreescritura interno
+# CSS de sobreescritura interno: ¡SOLUCIÓN DE COLOR NEGRO!
 st.markdown("""
     <style>
+    /* 🔴 FORZAR TODO EL TEXTO A NEGRO (Solución para móvil/fondo claro) */
+    * { 
+        color: #000000 !important; 
+    }
+    
     .warning { color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px; }
     .success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; }
     .metrica-info { border-left: 5px solid #007bff; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa; }
     .alert-danger-custom { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; font-weight: bold; }
     .alert-warning-custom { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; font-weight: bold; }
+    
+    /* Asegurar que los componentes de Streamlit hereden el color negro */
+    .stApp { color: #000000 !important; }
+    
     </style>
     """, unsafe_allow_html=True)
 
@@ -339,7 +346,7 @@ with tab2:
     
     st.markdown("---")
     st.subheader("Orden de Mezcla Sugerido (General)")
-    
+    # Imagen de un diagrama de mezcla
     st.markdown("""
     El orden de mezcla es crítico para evitar el corte del caldo.
     
@@ -396,7 +403,6 @@ with tab3:
 with tab4:
     st.header("☀️ Condiciones para Aplicación")
     
-    # Intenta obtener los datos del clima
     current_data = get_weather_data(LATITUDE, LONGITUDE)
     
     if current_data:
@@ -442,7 +448,7 @@ with tab4:
         st.divider()
         
     else:
-        st.warning("No se pudieron cargar los datos de clima en tiempo real. Esto puede deberse a un problema de conexión o a un error con la clave API.")
+        st.error("No se pudieron cargar los datos de clima en tiempo real. Esto puede deberse a un problema de conexión o a que la clave API no es válida.")
 
 
     # --- ENLACES EXTERNOS FIABLES ---
@@ -499,3 +505,20 @@ with tab5:
     
     *Tecnología al servicio de la aplicación inteligente.*
     """)
+    
+    st.subheader("☕ Apoya el Desarrollo")
+    st.info("Si AgroDrone Ops te ahorró tiempo y dolores de cabeza en el campo, considera apoyar el desarrollo y mantenimiento del proyecto. ¡Cada 'café' ayuda a mantener la app funcionando y las APIs pagadas!")
+
+    # Enlace de Buy Me a Coffee con tu usuario
+    BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/gabrielcarc"  
+
+    st.markdown(
+        f"""
+        <a href="{BUY_ME_A_COFFEE_URL}" target="_blank">
+            <button style="background-color: #FF813F; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%;">
+                Buy Me a Coffee (Apoya a Gabriel)
+            </button>
+        </a>
+        """, 
+        unsafe_allow_html=True
+    )
