@@ -1,75 +1,520 @@
 import streamlit as st
+import pandas as pd
 import math
+import io
+import requests 
+from datetime import datetime
 
-# --- CONFIGURACIÓN Y ESTILO ---
-st.set_page_config(page_title="AgroDosis - Precisión", page_icon="🛸", layout="wide")
+# --- CONFIGURACIÓN DE CLIMA y APIs ---
+# Usaremos 9 de Julio como ubicación fija de "ejemplo local"
+LATITUDE = -35.4485
+LONGITUDE = -60.8876
 
+# CLAVE API
+OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0" 
+
+@st.cache_data(ttl=300) # Cachear el clima por 5 minutos
+def get_weather_data(lat, lon):
+    """Obtiene datos de clima en tiempo real de OpenWeatherMap (ubicación fija/ejemplo)."""
+    
+    if not OPENWEATHERMAP_API_KEY:
+        return None
+    
+    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHERMAP_API_KEY}&units=metric&lang=es"
+    
+    try:
+        response = requests.get(url)
+        response.raise_for_status() 
+        data = response.json()
+        
+        temp_c = data['main']['temp'] 
+        humidity_pc = data['main']['humidity'] 
+        # Convertir m/s a km/h
+        wind_kmh = data['wind']['speed'] * 3.6 
+        weather_desc = data['weather'][0]['description'].capitalize()
+        cloudiness_pc = data['clouds']['all'] 
+        
+        rain_prob = 0
+        if 'lluvia' in weather_desc.lower() or cloudiness_pc > 80:
+             rain_prob = 70
+        elif cloudiness_pc > 50:
+             rain_prob = 30
+        
+        return {
+            "T_Actual": f"{temp_c:.1f} °C",
+            "Humedad_Val": humidity_pc,
+            "Humedad_Str": f"{humidity_pc} %",
+            "Viento_Val": wind_kmh,
+            "Viento_Str": f"{wind_kmh:.1f} km/h",
+            "Descripcion": weather_desc,
+            "Nubosidad_Str": f"{cloudiness_pc} %",
+            "Lluvia_Str": f"{rain_prob} %",
+            "Ciudad": data['name']
+        }
+        
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error al obtener datos de clima: {e}")
+        return None
+
+# --- VADEMÉCUM DATA (mantener el bloque de datos completo) ---
+csv_data = """
+PRINCIPIO_ACTIVO;DOSIS_MARBETE_MIN;DOSIS_MARBETE_MAX;UNIDAD_DOSIS;FAMILIA_QUIMICA;TIPO_PREPARADO;ALERTA_COMPATIBILIDAD;ORDEN_MEZCLA
+Glyphosate;0.25;1.5;L/ha;Glicina (EPSPS inhibitor);Herbicida;"Evitar pH alcalino, deriva";Medio
+Paraquat (Diquat similar);0.5;2;L/ha;Bipiridilio;Herbicida;"Muy tóxico, restricciones";Temprano
+Atrazine;0.5;3;kg/ha;Triazina (photosystem II inhibitor);Herbicida;"Persistente, cuidado en suelos arenosos";Temprano
+Simazine;0.5;3;kg/ha;Triazina;Herbicida;Carryover;Temprano
+Metolachlor;0.5;2;L/ha;Cloroacetamida;Herbicida;Requiere incorporación al suelo;Medio
+S-metolachlor;0.7;1.7;L/ha;Cloroacetamida (isómero);Herbicida;Evitar mezcla con aceites;Medio
+Acetochlor;1;2.5;L/ha;Cloroacetamida;Herbicida;Incorporación/actividad en pre-emergencia;Medio
+Alachlor;1;3;L/ha;Cloroacetamida;Herbicida;Riesgo de deriva;Medio
+Pendimethalin;0.5;2;L/ha;Dinitroanilina;Herbicida;"Fotodegradable, no mezclar con alcalinos";Temprano
+Trifluralin;0.5;1.5;L/ha;Dinitroanilina;Herbicida;Incorporación al suelo (PPI);Temprano
+Imazethapyr;0.05;0.2;L/ha;Imidazolinona (ALS inhibitor);Herbicida;Persistencia;Medio
+Imazamox;0.05;0.1;L/ha;Imidazolinona;Herbicida;Usado en Clearfield;Medio
+Metsulfuron-methyl;0.01;0.05;kg/ha;Sulfonilurea;Herbicida;"Residualidad alta, rotación de cultivos";Medio
+Chlorsulfuron;0.01;0.03;kg/ha;Sulfonilurea;Herbicida;Muy residual;Medio
+Nicosulfuron;0.05;0.1;L/ha;Sulfonilurea;Herbicida;Específico para gramíneas;Medio
+Rimsulfuron;0.01;0.04;kg/ha;Sulfonilurea;Herbicida;Residualidad;Medio
+Mesotrione;0.1;0.25;L/ha;Tricetona;Herbicida;Blanqueo temporal;Medio
+Tembotrione;0.1;0.2;L/ha;Tricetona;Herbicida;Actúa mejor con coadyuvante;Medio
+Isoxaflutole;0.1;0.25;L/ha;Isoxazole;Herbicida;Requiere activación por humedad;Temprano
+Fluroxypyr;0.2;0.8;L/ha;Ácido piridin carboxílico;Herbicida;Volatilidad;Medio
+Picloram;0.1;0.5;L/ha;Ácido piridin carboxílico;Herbicida;Alta residualidad;Medio
+Clopyralid;0.1;0.4;L/ha;Ácido piridin carboxílico;Herbicida;Específico para compuestas;Medio
+Triclopyr;0.5;1.5;L/ha;Ácido piridin carboxílico;Herbicida;Leñosas;Medio
+2,4-D;0.5;1.5;L/ha;Ácido Fenoxiacético;Herbicida;"Deriva, Volatilidad";Medio
+Dicamba;0.1;0.5;L/ha;Ácido Benzoico;Herbicida;"Deriva, Volatilidad";Medio
+Bromoxynil;0.5;1.5;L/ha;Nitrilo;Herbicida;Contacto;Medio
+Ioxynil;0.5;1.5;L/ha;Nitrilo;Herbicida;Contacto;Medio
+Saflufenacil;0.05;0.15;kg/ha;Pirimidindiona (PPO inhibitor);Herbicida;Requiere aceite/surfactante;Final
+Carfentrazone;0.05;0.1;kg/ha;Triazolinona (PPO inhibitor);Herbicida;Contacto;Final
+Sulfentrazone;0.1;0.5;kg/ha;Triazolinona;Herbicida;Residualidad;Temprano
+Flumioxazin;0.1;0.5;kg/ha;N-fenilftalimida;Herbicida;Pre-emergencia;Temprano
+Flufenacet;0.5;1.5;L/ha;Oxietilcarboxamida;Herbicida;Pre-emergencia;Medio
+Diflufenican;0.1;0.3;L/ha;Nicotinanilida;Herbicida;Residualidad;Medio
+Linuron;0.5;1.5;kg/ha;Urea (PS II inhibitor);Herbicida;PS II inhibitor;Temprano
+MCPA;0.5;1.5;L/ha;Ácido Fenoxiacético;Herbicida;Menor volatilidad que 2,4-D;Medio
+Flumetsulam;0.05;0.15;L/ha;Triazolpirimidina (ALS inhibitor);Herbicida;Residualidad;Medio
+Bromacil;0.5;1.5;kg/ha;Uracilo (PS II inhibitor);Herbicida;Uso no selectivo/control total;Temprano
+Clethodim;0.3;1;L/ha;Ciclohexanodiona (ACCasa inhibitor);Herbicida;Aceite mineral obligatorio;Final
+Haloxyfop;0.1;0.3;L/ha;Ariloxifenoxipropionato (ACCasa inhibitor);Herbicida;Selectivo gramíneas;Final
+Quizalofop;0.1;0.3;L/ha;Ariloxifenoxipropionato;Herbicida;Selectivo gramíneas;Final
+Pinoxaden;0.5;1;L/ha;Fenilpirazolina (ACCasa inhibitor);Herbicida;Específico para cereales;Final
+Indaziflam;0.05;0.15;kg/ha;Alquil azolil;Herbicida;Nueva molécula;Temprano
+Isoxaben;0.5;1.5;kg/ha;Benzamida;Herbicida;Pre-emergencia;Temprano
+Bixlozone;0.5;1.5;L/ha;Isoxazolidinona;Herbicida;Pre-emergencia;Medio
+Chlorpyrifos;0.5;1.5;L/ha;Organofosforado (AChE inhibitor);Insecticida;"Alta toxicidad, restricciones";Medio
+Malathion;1;2;L/ha;Organofosforado;Insecticida;"Tóxico, cuidado en mezclas";Medio
+Diazinon;0.5;1.5;L/ha;Organofosforado;Insecticida;Residuos;Medio
+Acephate;0.5;1;kg/ha;Organofosforado;Insecticida;Toxicidad a mamíferos;Medio
+Methamidophos;0.5;1;L/ha;Organofosforado;Insecticida;"Muy tóxico, muchos países lo prohíben";Medio
+Carbaryl;0.5;1.5;kg/ha;Carbamato (AChE inhibitor);Insecticida;Toxicidad media;Medio
+Methomyl;0.2;0.5;L/ha;Carbamato;Insecticida;Tóxico;Medio
+Pyrethrins;0.1;0.5;L/ha;Piretroide natural (Na channel modulator);Insecticida;Rápida descomposición;Final
+Permethrin;0.1;0.3;L/ha;Piretroide (Na channel modulator);Insecticida;"Tóxico para abejas y peces";Final
+Cypermethrin;0.1;0.3;L/ha;Piretroide;Insecticida;Tóxico acuático;Final
+Deltamethrin;0.05;0.15;L/ha;Piretroide;Insecticida;Muy tóxico para abejas;Final
+Lambda-cyhalothrin;0.05;0.1;L/ha;Piretroide;Insecticida;No aplicar en floración;Final
+Bifenthrin;0.1;0.3;L/ha;Piretroide;Insecticida;Persistente en suelos;Final
+Abamectin;0.05;0.1;L/ha;Avermectina (Cl channel activator);Acaricida;Riesgo para polinizadores;Medio
+Spinosad;0.1;0.3;L/ha;Spinosin (nAChR modulator);Insecticida;Cuidado en polinizadores;Medio
+Emamectin benzoate;0.05;0.1;kg/ha;Avermectina;Insecticida;Cuidado en polinizadores;Medio
+Chlorantraniliprole;0.05;0.15;L/ha;Diamida (Ryanodine R. modulator);Insecticida;Menor riesgo relativo;Medio
+Flubendiamide;0.1;0.3;kg/ha;Diamida;Insecticida;Baja toxicidad mamíferos;Medio
+Bacillus thuringiensis;0.5;1.5;kg/ha;Microbiano (Gut disruptor);Insecticida;Eficaz por ingestión;Medio
+Azadirachtin;0.5;2;L/ha;Neem oil (various);Insecticida;Restringido en algunos países;Medio
+Beauveria bassiana;1;3;L/ha;Hongo;Insecticida;"Biopesticida, cuidar mezcla con insecticidas de contacto";Medio
+Metarhizium anisopliae;1;3;L/ha;Hongo;Insecticida;Tóxico para abejas por contacto;Medio
+Indoxacarb;0.05;0.15;L/ha;Oxadiazina (Na channel blocker);Insecticida;Eficaz en lepidópteros;Medio
+Lufenuron;0.1;0.3;L/ha;Benzoylurea (Chitin synthesis inhibitor);Insecticida;Eficaz ingestión;Medio
+Teflubenzuron;0.1;0.3;L/ha;Benzoylurea;Insecticida;Selectivo para Lepidoptera;Medio
+Novamuron;0.1;0.3;L/ha;Benzoylurea;Insecticida;Control larval;Medio
+Buprofezin;0.5;1.5;L/ha;Tiacina (Chitin synthesis inhibitor);Insecticida;Incompatibilidades cajas;Medio
+Spirotetramat;0.1;0.3;L/ha;Tetramic acid (Lipid Biosynthesis Inhibitor);Insecticida;Eficaz en homópteros;Medio
+Spiromesifen;0.2;0.5;L/ha;Tetramic acid;Acaricida;Acaricida;Final
+Imidacloprid;0.05;0.15;L/ha;Neonicotinoide (nAChR agonist);Insecticida;"No mezclar con alcalinos, amplio espectro";Medio
+Thiamethoxam;0.05;0.15;kg/ha;Neonicotinoide;Insecticida;Evitar mezclas con aceites;Medio
+Acetamiprid;0.05;0.15;kg/ha;Neonicotinoide;Insecticida;No mezclar con azufre;Medio
+Sulfoxaflor;0.05;0.15;L/ha;Sulfoximina (nAChR agonist);Insecticida;Fitotoxicidad en algunas especies;Medio
+Pyriproxyfen;0.05;0.15;L/ha;Juvenile Hormone Mimic;Insecticida;Rotar por resistencia;Final
+Fenbutatin oxide;0.5;1.5;kg/ha;Organotina;Acaricida;"Oomycete control, resistencia";Medio
+Propargite;0.5;1.5;L/ha;Sulfito;Acaricida;Alto riesgo de resistencia;Medio
+Cyflumetofen;0.1;0.3;L/ha;Amidoxime;Acaricida;Rotar modos de acción;Final
+Captan;0.5;1.5;kg/ha;Ftalimida (multi-site);Fungicida;No mezclar con productos alcalinos;Temprano
+Thiram;1;3;kg/ha;Dithiocarbamate;Fungicida;Fitotoxicidad si se sobredosifica;Temprano
+Iprodione;0.5;1.5;L/ha;Dicarboximide;Fungicida;Resistencia en algunos patógenos;Medio
+Fludioxonil;0.1;0.5;L/ha;Phenylpyrrole;Fungicida;Usado en semillas y postcosecha;Medio
+Fenhexamid;0;0;dosis segun etiqueta;Hydroxyanilide;Fungicida;Eficaz en botrytis;Medio
+Boscalid;0.2;0.6;L/ha;SDHI (succinate dehydrogenase inhibitors);Fungicida;Rotar para evitar resistencia;Medio
+Fluxapyroxad;0;0;dosis segun etiqueta;SDHI;Fungicida;Usado en mezcla con triazoles;Medio
+Pyrimethanil;0;0;dosis segun etiqueta;Anilinopyrimidine;Fungicida;Usado en frutas;Medio
+Cyprodinil;0;0;dosis segun etiqueta;Anilinopyrimidine;Fungicida;Combinaciones comerciales;Medio
+Mandipropamid;0;0;dosis segun etiqueta;Carboxamide (oomycete active);Fungicida;Control de oomicetos;Medio
+Zoxamide;0;0;dosis segun etiqueta;Benzamida;Fungicida;Oomycete control;Medio
+Fluopicolide;0.1;0.3;L/ha;Benzamida (oomycete active);Fungicida;Común en hortalizas;Medio
+Cymoxanil;0.2;0.6;kg/ha;Cianoacetamida oxima;Fungicida;Control curativo;Medio
+Propamocarb;1;3;L/ha;Carbamato (oomycete active);Fungicida;Muy selectivo;Medio
+Fosetyl-Al;1;3;kg/ha;Fosfonato;Fungicida;Control de Phytophthora;Medio
+Mancozeb;1;3;kg/ha;Dithiocarbamate (multi-site);Fungicida;"Contacto, protección foliar";Temprano
+Chlorothalonil;1;2.5;L/ha;Cloronitrilo (multi-site);Fungicida;"Amplio espectro, contacto";Temprano
+Folpet;1;2.5;kg/ha;Ftalimida (multi-site);Fungicida;Contacto;Temprano
+Azoxystrobin;0.1;0.3;L/ha;Estrobilurina (QoI inhibitor);Fungicida;Rotar por resistencia;Medio
+Pyraclostrobin;0.1;0.3;L/ha;Estrobilurina;Fungicida;Efecto fisiológico (AgCelence);Medio
+Trifloxystrobin;0.05;0.15;L/ha;Estrobilurina;Fungicida;Rotar;Medio
+Difenoconazole;0.1;0.3;L/ha;Triazol (DMI inhibitor);Fungicida;Control curativo y preventivo;Medio
+Tebuconazole;0.1;0.3;L/ha;Triazol;Fungicida;Amplio uso en cereales;Medio
+Cyproconazole;0.05;0.15;L/ha;Triazol;Fungicida;Rotar;Medio
+Propiconazole;0.1;0.3;L/ha;Triazol;Fungicida;Común en cereales;Medio
+Metconazole;0.05;0.15;L/ha;Triazol;Fungicida;Rotar;Medio
+Prochloraz;0.5;1.5;L/ha;Imidazol;Fungicida;Rotar por resistencia;Medio
+Fenpropimorph;0.5;1.5;L/ha;Morfolina (SBI);Fungicida;Rotar;Medio
+Spinetoram;0.05;0.15;L/ha;Spinosin;Insecticida;Rotar;Medio
+Flonicamid;0.05;0.15;kg/ha;Piridinacarboxamida;Insecticida;Tóxico para peces;Medio
+Pymetrozine;0.1;0.3;kg/ha;Piridinacarboxamida;Insecticida;Eficaz en pulgones;Medio
+Biflubenamide;0.1;0.3;L/ha;Benzamida;Acaricida;Rotar;Final
+Diafenthiuron;0.5;1.5;kg/ha;Tiouracil;Acaricida;Requiere alta temperatura;Medio
+Spirodiclofen;0.2;0.5;L/ha;Tetramic acid;Acaricida;Rotar;Final
+Etoxazole;0.05;0.15;L/ha;Difenil oxazolina;Acaricida;Rotar;Final
+""" 
+
+vademecum = {}
+productos_disponibles = []
+
+try:
+    df = pd.read_csv(io.StringIO(csv_data), sep=";")
+    df = df.dropna(subset=['PRINCIPIO_ACTIVO']) 
+    
+    if not df.empty:
+        vademecum = df.set_index('PRINCIPIO_ACTIVO').T.to_dict('dict')
+        productos_disponibles = sorted(list(vademecum.keys()))
+    
+except pd.errors.ParserError as e:
+    st.error(f"Error en el Vademécum (ParserError): {e}")
+    
+
+# --- CONFIGURACIÓN INICIAL DE STREAMLIT ---
+# Apunta al ícono que debes subir a la raíz del repositorio.
+st.set_page_config(page_title="AgroDrone Ops", page_icon="favicon.png", layout="centered")
+
+# CARGAR CSS ESTÉTICO EXTERNO
+try:
+    with open("style.css") as f:
+        st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
+except FileNotFoundError:
+    pass
+
+# CSS de sobreescritura interno: ¡SOLUCIÓN DE COLOR NEGRO Y FONDO BLANCO!
 st.markdown("""
     <style>
-    .stApp { background-color: #f4f7f6; }
-    .result-card { 
-        background-color: #ffffff; 
-        padding: 25px; 
-        border-radius: 15px; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        border-left: 10px solid #2D5A27;
+    /* 🔴 Solución de compatibilidad de color para móvil */
+    .stApp { 
+        color: #000000 !important; 
+        background-color: #FFFFFF !important; /* <--- FONDO BLANCO PURO AQUI */
     }
-    h3 { color: #1e4d2b; margin-bottom: 15px; }
+    
+    .warning { color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px; }
+    .success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; }
+    .metrica-info { border-left: 5px solid #007bff; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa; }
+    .alert-danger-custom { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; font-weight: bold; }
+    .alert-warning-custom { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; font-weight: bold; }
+    
     </style>
     """, unsafe_allow_html=True)
 
-# --- BASE DE DATOS (Basada en tus archivos de Nutrien) ---
-# Datos específicos extraídos del PDF de Nutrien
-fitos_db = {
-    "Glifosato 480 SL (Nutrien)": {
-        "min": 1.5, "max": 10.0, "unidad": "L/ha", 
-        "alerta": "No aplicar más de 15 kg/año. Evitar lluvias 48-72h posteriores.",
-        "orden": "Líquidos Solubles (SL)"
-    },
-    "Atrazina": {"min": 0.5, "max": 3.0, "unidad": "kg/ha", "orden": "Sólidos Secos (WG/WP)"},
-    "2,4-D": {"min": 0.5, "max": 1.5, "unidad": "L/ha", "orden": "Emulsiones (EC)"}
-}
+st.title("🚁 AgroDrone Ops")
+st.write("Calculadora de Caldo y Vademécum Fitosanitario")
 
-# --- DISEÑO DE LA INTERFAZ ---
-st.markdown("## ⚙️ Parámetros de Trabajo")
+if 'num_productos' not in st.session_state:
+    st.session_state.num_productos = 1
 
-col_in, col_out = st.columns([1.2, 1], gap="large")
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["🧮 Calculadora Caldo", "⛽ Grupo Electrógeno", "📖 Vademécum", "☀️ Tiempo de Vuelo", "👤 Sobre la App"])
 
-with col_in:
-    # Ajustado a los valores de tu imagen
-    lote_ha = st.number_input("Superficie del Lote (ha)", value=20.00, step=1.0)
-    tasa_dron = st.number_input("Tasa de Aplicación Dron (L/ha)", value=10.00, step=0.5)
-    capacidad_mixer = st.selectbox("Capacidad del Mixer (L)", [1000, 500, 300, 200, 100])
+def add_product():
+    if st.session_state.num_productos < 5:
+        st.session_state.num_productos += 1
+
+# --- TAB 1: CALCULADORA MIXER ---
+with tab1:
+    st.header("Armado del Caldo (Mixer)")
     
+    col1, col2 = st.columns(2)
+    with col1:
+        tanque_opcion = st.selectbox("Tamaño del Mixer [Litros]", 
+                                     ["100", "200", "300", "500", "Personalizado"])
+        if tanque_opcion == "Personalizado":
+            capacidad_mixer = st.number_input("Ingresar volumen personalizado (L)", value=330, step=10)
+        else:
+            capacidad_mixer = int(tanque_opcion)
+
+    with col2:
+        tasa_aplicacion = st.number_input("Tasa Dron (Líquido/ha)", value=10.0, step=0.5, format="%.1f")
+
     st.divider()
-    st.markdown("### 🧪 Selección de Producto")
-    producto_name = st.selectbox("Principio Activo", list(fitos_db.keys()))
     
-    info = fitos_db[producto_name]
+    st.subheader("Datos del Lote")
+    hectareas_totales = st.number_input("Hectáreas Totales del Lote", value=20.0, step=1.0)
     
-    # Slider configurado con los rangos del vademécum
-    dosis_user = st.slider(f"Dosis a aplicar ({info['unidad']})", 
-                           float(info['min']), float(info['max']), 1.50)
+    st.subheader("Productos a Aplicar (Dosis por Hectárea)")
+    productos_seleccionados = []
+    
+    for i in range(st.session_state.num_productos):
+        st.markdown(f"**Producto #{i+1}**")
+        cols = st.columns([0.4, 0.3, 0.3])
+        
+        opciones_productos = ["Otro / Personalizado"] + productos_disponibles
+        
+        if not productos_disponibles:
+             producto_seleccion = cols[0].selectbox("Principio Activo", options=["Otro / Personalizado"], key=f'prod_select_{i}')
+        else:
+             producto_seleccion = cols[0].selectbox("Principio Activo", options=opciones_productos, key=f'prod_select_{i}')
+        
+        producto_nombre = producto_seleccion
+        
+        if producto_seleccion == "Otro / Personalizado" or not productos_disponibles: 
+            default_value = "" if not productos_disponibles else "" 
+            producto_nombre = cols[0].text_input("Escribir nombre:", value=default_value, key=f'prod_input_{i}')
+            if not producto_nombre:
+                continue 
 
-with col_out:
-    # Lógica de Cálculo
-    vol_total = lote_ha * tasa_dron
-    prod_total = lote_ha * dosis_user
-    cant_cargas = math.ceil(vol_total / capacidad_mixer)
-    prod_por_carga = prod_total / cant_cargas if cant_cargas > 0 else 0
+        unidad = cols[1].selectbox("Unidad Dosis", options=["Litros/ha", "Kg/ha"], key=f'unit_{i}')
+        dosis = cols[2].number_input("Dosis", value=0.0, step=0.1, key=f'dose_{i}')
+        
+        if producto_nombre and dosis > 0:
+            productos_seleccionados.append({
+                'nombre': producto_nombre,
+                'unidad': unidad,
+                'dosis_ha': dosis
+            })
     
-    st.markdown(f"""
-        <div class="result-card">
-            <h3>📊 Resultados de la Operación</h3>
-            <p>Volumen Total de Caldo: <b>{vol_total:.2f} Litros</b></p>
-            <p>Total de {producto_name}: <b>{prod_total:.2f} {info['unidad'].split('/')[0]}</b></p>
-            <hr>
-            <h3>🚚 Logística de Carga</h3>
-            <p>Cantidad de Cargas: <b>{cant_cargas} cargas</b> de mixer</p>
-            <p>Producto por cada carga: <b>{prod_por_carga:.2f} {info['unidad'].split('/')[0]}</b></p>
-            <p>Orden de mezcla: <b>{info['orden']}</b></p>
-        </div>
-    """, unsafe_allow_html=True)
+    if st.session_state.num_productos < 5: 
+        st.button("➕ Agregar Producto", on_click=add_product) 
+
+            
+    volumen_total_caldo = hectareas_totales * tasa_aplicacion
     
-    if st.button("📥 Generar Reporte"):
-        st.success("Reporte listo para descarga.")
+    st.markdown("---")
+    st.markdown(f"### 📊 Resultados Lote Completo ({hectareas_totales} ha)")
+    st.info(f"**Volumen Total de Caldo Necesario:** {volumen_total_caldo:.1f} Litros")
+    
+    resumen_impresion = f"--- PLANIFICACIÓN DE APLICACIÓN ---\n"
+    resumen_impresion += f"Lote: {hectareas_totales} ha\n"
+    resumen_impresion += f"Tasa de aplicación: {tasa_aplicacion} L/ha\n"
+    resumen_impresion += f"Capacidad del Mixer: {capacidad_mixer} L\n"
+    resumen_impresion += f"Volumen Total de Caldo: {volumen_total_caldo:.1f} L\n\n"
+    resumen_impresion += "--- INSUMOS TOTALES ---\n"
+    
+    for producto in productos_seleccionados:
+        nombre = producto['nombre']
+        dosis_ha = producto['dosis_ha']
+        unidad = producto['unidad'].split('/')[0] 
+        
+        producto_total_necesario = hectareas_totales * dosis_ha
+        
+        st.success(f"**Total de {nombre} a utilizar:** {producto_total_necesario:.2f} {unidad}") 
+        resumen_impresion += f"- {nombre}: {producto_total_necesario:.2f} {unidad}\n"
+        
+        dosis_por_mixer_completo = (capacidad_mixer / tasa_aplicacion) * dosis_ha
+        cargas_completas = math.floor(volumen_total_caldo / capacidad_mixer)
+        remanente_volumen = volumen_total_caldo % capacidad_mixer
+
+        st.markdown(f"##### Dosis de {nombre} en el Mixer:")
+        if cargas_completas > 0:
+            st.write(f"- En cada una de las **{cargas_completas}** cargas completas: **{dosis_por_mixer_completo:.2f} {unidad}**")
+        
+        if remanente_volumen > 0:
+            dosis_remanente = (remanente_volumen / tasa_aplicacion) * dosis_ha
+            st.write(f"- En la carga final de **{remanente_volumen:.1f} Litros**: **{dosis_remanente:.2f} {unidad}**")
+            
+    st.markdown("---")
+    st.download_button(
+        label="🖨️ Imprimir Resumen de Aplicación (TXT)",
+        data=resumen_impresion,
+        file_name=f'Planificacion_Lote_{hectareas_totales}ha.txt',
+        mime='text/plain'
+    )
+
+# --- TAB 2: GRUPO ELECTRÓGENO ---
+with tab2:
+    st.header("⛽ Cálculo de Combustible para Grupo Electrógeno")
+    consumo_gen = st.number_input("Consumo Grupo Electrógeno (Litros/ha de aplicación)", value=1.0, step=0.1) 
+    total_nafta = hectareas_totales * consumo_gen
+    
+    st.success(f"**Combustible Necesario:** {total_nafta:.1f} Litros de Nafta/Gasolina para el generador.")
+    
+    st.markdown("---")
+    st.subheader("Orden de Mezcla Sugerido (General)")
+    st.markdown("""
+    El orden de mezcla es crítico para evitar el corte del caldo. 
+    
+    1. **Agua y Corrección (WA/Water Conditioning)**
+    2. **Sólidos Secos (WG/SG/WP)**
+    3. **Suspensiones Acuosas (SC/CS)**
+    4. **Emulsiones (EC/EW/OD)**
+    5. **Líquidos Solubles (SL)**
+    6. **Coadyuvantes / Surfactantes / Aceites**
+    7. **Completar con el resto de agua**
+    """)
+
+# --- TAB 3: VADEMÉCUM ---
+with tab3:
+    st.header("🔍 Vademécum Fitosanitario")
+    
+    if vademecum:
+        st.info("⚠️ **IMPORTANTE:** El Vademécum se cargó correctamente. Verifica el campo 'Alerta de Compatibilidad' antes de mezclar.")
+        opciones_busqueda = [""] + productos_disponibles
+        busqueda = st.selectbox("Buscar Principio Activo o Producto", opciones_busqueda)
+        
+        if busqueda in vademecum:
+            data = vademecum[busqueda]
+            st.markdown(f"### {busqueda}")
+            
+            dosis_min = data['DOSIS_MARBETE_MIN']
+            dosis_max = data['DOSIS_MARBETE_MAX']
+            unidad_dosis = data['UNIDAD_DOSIS']
+            
+            if isinstance(dosis_min, (int, float)) and isinstance(dosis_max, (int, float)) and dosis_min == 0 and dosis_max == 0:
+                dosis_str = unidad_dosis
+            else:
+                dosis_str = f"{dosis_min} - {dosis_max} {unidad_dosis}"
+
+            ficha_tecnica = {
+                "Dosis Marbete (Mín - Máx)": dosis_str,
+                "Familia Química": data['FAMILIA_QUIMICA'],
+                "Tipo Preparado": data['TIPO_PREPARADO'],
+                "Orden Sugerido": data['ORDEN_MEZCLA'],
+                "Alerta de Compatibilidad": data['ALERTA_COMPATIBILIDAD']
+            }
+            
+            df_ficha = pd.DataFrame([ficha_tecnica]).T.rename(columns={0: "Detalle"})
+            st.table(df_ficha)
+            
+            st.markdown(f'<div class="warning">**🚨 Alerta de Mezcla:** {data["ALERTA_COMPATIBILIDAD"]}</div>', unsafe_allow_html=True)
+        else:
+            st.info("Selecciona un principio activo de la lista para ver su ficha técnica, dosis de marbete y alertas de mezcla.")
+    else:
+        st.warning("⚠️ **Vademécum no cargado/vacío.**")
+
+
+# --- TAB 4: TIEMPO DE VUELO ---
+with tab4:
+    st.header("☀️ Condiciones para Aplicación")
+    
+    current_data = get_weather_data(LATITUDE, LONGITUDE)
+    
+    if current_data:
+        st.subheader(f"📋 Condiciones Críticas (Ejemplo Local: {current_data['Ciudad']})")
+        st.caption(f"Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+        
+        dcols = st.columns(4)
+        dcols[0].metric("Temperatura Actual", current_data['T_Actual'])
+        dcols[1].metric("Humedad Relativa", current_data['Humedad_Str'])
+        dcols[2].metric("Viento", current_data['Viento_Str'])
+        dcols[3].metric("Prob. Lluvia", current_data['Lluvia_Str'])
+        
+        # --- LÓGICA DE ALERTA DE VUELO ---
+        wind_speed_val = current_data['Viento_Val']
+        humidity_val = current_data['Humedad_Val']
+        
+        alerta_viento = ""
+        alerta_humedad = ""
+
+        if wind_speed_val > 20.0:
+            alerta_viento = f"**❌ Viento Excesivo:** {current_data['Viento_Str']}. Vuelo NO Apto (Alto riesgo de deriva)."
+        elif wind_speed_val > 15.0:
+            alerta_viento = f"**⚠️ Precaución Viento:** {current_data['Viento_Str']}. Monitorear ráfagas."
+        else:
+            alerta_viento = f"**✅ Viento Óptimo:** {current_data['Viento_Str']}."
+
+        if humidity_val < 50:
+            alerta_humedad = f"**⚠️ Humedad Baja:** {current_data['Humedad_Str']}. Riesgo de evaporación rápida del caldo."
+        elif humidity_val > 90:
+            alerta_humedad = f"**⚠️ Humedad Alta:** {current_data['Humedad_Str']}. Riesgo de escurrimiento (run-off)."
+        else:
+            alerta_humedad = f"**✅ Humedad Aceptable:** {current_data['Humedad_Str']}."
+
+        st.markdown("---")
+        st.markdown(f'<div class="metrica-info">{alerta_viento}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metrica-info">{alerta_humedad}</div>', unsafe_allow_html=True)
+
+        if wind_speed_val > 20.0 or humidity_val < 30 or humidity_val > 95:
+             st.markdown('<div class="alert-danger-custom">🔴 RECOMENDACIÓN: DETENER LA APLICACIÓN. Condiciones CRÍTICAS.</div>', unsafe_allow_html=True)
+        else:
+             st.markdown('<div class="success">🟢 RECOMENDACIÓN: Condiciones favorables para aplicar. (Mantener vigilancia).</div>', unsafe_allow_html=True)
+        
+        st.divider()
+        
+    else:
+        st.error("No se pudieron cargar los datos de clima en tiempo real. Esto puede deberse a un problema de conexión o a que la clave API no es válida.")
+
+
+    # --- ENLACES EXTERNOS FIABLES ---
+    st.markdown("### 🔗 Pronóstico Extendido y Condiciones de Vuelo")
+    st.markdown("Para condiciones específicas de tu lote y pronóstico extendido (T°, Lluvia, Viento), utiliza estas fuentes confiables:")
+    
+    col_kp, col_weather = st.columns(2)
+
+    with col_kp:
+        st.markdown("**🛰️ Riesgo Geomagnético (KP)**")
+        st.markdown(
+            """
+            <a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">
+                <button style="background-color: #ff9900; color: white; padding: 10px 10px; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
+                    Ver KP en NOAA
+                </button>
+            </a>
+            """, unsafe_allow_html=True
+        )
+    
+    with col_weather:
+        st.markdown("**⛈️ Pronóstico Meteorológico Completo**")
+        st.markdown(
+            """
+            <a href="https://www.windy.com/?-35.950,-60.890,10" target="_blank">
+                <button style="background-color: #007bff; color: white; padding: 10px 10px; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
+                    Ver Windy.com (Viento/Precipitación)
+                </button>
+            </a>
+            """, unsafe_allow_html=True
+        )
+
+# --- TAB 5: SOBRE LA APP ---
+with tab5:
+    st.header("👤 Sobre AgroDrone Ops")
+    
+    st.markdown("""
+    ### Un Saludo de Gabriel Carrasco
+    
+    ¡Gracias por usar AgroDrone Ops!
+    
+    Esta aplicación nació de la necesidad práctica de tener herramientas rápidas y confiables en el campo, sin depender de papeles o cálculos complejos bajo el sol. Es una **herramienta de recreación y ayuda** diseñada por un aplicador para aplicadores.
+    
+    Está pensada para:
+    * **Simplificar el armado del Caldo (Mixer):** Asegurando las dosis correctas por carga.
+    * **Maximizar la eficiencia:** Calculando combustible y verificando las condiciones climáticas críticas.
+    * **Seguridad:** Ofreciendo una guía de mezcla y un acceso rápido a pronósticos externos confiables (Viento, Lluvia, Índice KP).
+    
+    **El objetivo no es reemplazar la experiencia del aplicador, sino complementarla.** Siempre utiliza los datos de marbete del fabricante como guía principal y verifica todas las condiciones in situ antes de cada vuelo.
+    
+    ---
+    
+    **Desarrollado por:** Gabriel Carrasco
+    
+    *Tecnología al servicio de la aplicación inteligente.*
+    """)
+    
+    st.subheader("☕ Apoya el Desarrollo")
+    st.info("Si AgroDrone Ops te ahorró tiempo y dolores de cabeza en el campo, considera apoyar el desarrollo y mantenimiento del proyecto. ¡Cada 'café' ayuda a mantener la app funcionando y las APIs pagadas!")
+
+    # Enlace de Buy Me a Coffee con tu usuario
+    BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/gabrielcarc"  
+
+    st.markdown(
+        f"""
+        <a href="{BUY_ME_A_COFFEE_URL}" target="_blank">
+            <button style="background-color: #FF813F; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%;">
+                Buy Me a Coffee (Apoya a Gabriel)
+            </button>
+        </a>
+        """, 
+        unsafe_allow_html=True
+    )
