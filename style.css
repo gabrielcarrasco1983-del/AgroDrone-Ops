@@ -1,80 +1,75 @@
-/*
- * Archivo: style.css
- * Autor: Gabriel Carrasco
- * Función: Estilos personalizados para AgroDrone Ops
- */
+/* FUENTE Y CUERPO */
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;700&display=swap');
 
-/* 1. Corrección del cuerpo principal para asegurar texto negro y fondo limpio */
-body {
-    color: #000000 !important; /* Forzar color de texto principal a negro */
-    background-color: #FFFFFF; /* CAMBIO CLAVE: Fondo Blanco Puro para máximo contraste */
+html, body, [class*="css"] {
+    font-family: 'Public Sans', sans-serif;
+    color: #333333;
 }
 
-/* --- SOLUCIÓN PARA INPUTS Y SELECTORES (Texto dentro de las cajas) --- */
-/* Las clases st-c3 y st-c5 controlan la apariencia del texto dentro de inputs y selectores */
-.st-c3, .st-c5 { 
-    color: #333333 !important; /* Forzar color de texto de entrada a gris oscuro para legibilidad */
-}
-/* --- FIN SOLUCIÓN INPUTS --- */
-
-/* 2. Estilos para el título y encabezados */
-h1 {
-    color: #145A32; /* Verde Oscuro/Agro */
-    font-weight: 700;
-    border-bottom: 3px solid #1A8A3D; /* Línea verde debajo del título principal */
-    padding-bottom: 5px;
-    margin-bottom: 20px;
+/* BOTONES ESTILO NUTRIEN */
+.stButton > button {
+    background-color: #88D600 !important; /* Verde Nutrien */
+    color: #002A20 !important; /* Texto Oscuro para contraste */
+    border-radius: 4px !important;
+    border: none !important;
+    padding: 0.6rem 1.2rem !important;
+    font-weight: 700 !important;
+    transition: all 0.3s ease !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-h2, h3, h4 {
-    color: #1A8A3D;
-    font-weight: 600;
+.stButton > button:hover {
+    background-color: #002A20 !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
-/* 3. Estilos de botones primarios */
-.stButton>button {
-    background-color: #1A8A3D; 
-    color: white !important;
-    border-radius: 8px;
-    padding: 10px 20px;
-    border: none;
-    transition: background-color 0.3s;
-}
-
-.stButton>button:hover {
-    background-color: #145A32;
-    color: white !important;
-}
-
-/* 4. Estilos de pestañas (Tabs) */
+/* ESTILO DE TABS (PESTAÑAS) */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 12px;
+    gap: 8px;
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 8px 8px 0 0;
 }
 
 .stTabs [data-baseweb="tab"] {
     height: 50px;
-    white-space: nowrap;
-    border-radius: 8px 8px 0 0;
-    color: #1A8A3D; 
-    font-size: 16px;
-    font-weight: 600;
-    background-color: #e6ffe6; /* Fondo ligero para tabs */
+    background-color: transparent;
+    border-radius: 4px;
+    color: #666;
+    border: none;
 }
 
 .stTabs [aria-selected="true"] {
-    background-color: #1A8A3D; /* Tab activa en verde oscuro */
-    color: white !important;
+    background-color: #ffffff !important;
+    color: #88D600 !important;
+    border-bottom: 3px solid #88D600 !important;
+    font-weight: bold;
 }
 
-/* 5. Estilo de métricas (cajas de clima) */
-.stMetric {
-    background-color: #F8F8F8;
-    border-radius: 8px;
+/* TARJETAS Y CONTENEDORES */
+div[data-testid="stMetric"] {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
     padding: 15px;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-/* 6. Estilo para las alertas personalizadas (Asegura legibilidad) */
-.alert-danger-custom, .alert-warning-custom, .success, .warning, .metrica-info {
-    color: #000000 !important; /* Asegurar texto negro en los bloques de alerta */
+/* ALERTAS PERSONALIZADAS */
+.warning { 
+    border-left: 5px solid #ffcc00; 
+    background-color: #fff9e6; 
+    color: #856404;
+    padding: 15px;
+    border-radius: 4px;
+}
+
+.success { 
+    border-left: 5px solid #88D600; 
+    background-color: #f0f9e8; 
+    color: #155724;
+    padding: 15px;
+    border-radius: 4px;
 }

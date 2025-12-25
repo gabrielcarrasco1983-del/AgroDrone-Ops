@@ -10,15 +10,13 @@ from datetime import datetime
 LATITUDE = -35.4485
 LONGITUDE = -60.8876
 
-# --- CLAVE API INSERTADA ---
-# La clave API proporcionada ha sido insertada aquí.
+# CLAVE API
 OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0" 
 
 @st.cache_data(ttl=300) # Cachear el clima por 5 minutos
 def get_weather_data(lat, lon):
     """Obtiene datos de clima en tiempo real de OpenWeatherMap (ubicación fija/ejemplo)."""
     
-    # Verifica que la clave API no esté vacía.
     if not OPENWEATHERMAP_API_KEY:
         return None
     
@@ -26,7 +24,6 @@ def get_weather_data(lat, lon):
     
     try:
         response = requests.get(url)
-        # Esto generará un error si la solicitud HTTP falla (ej. clave API incorrecta o límite excedido)
         response.raise_for_status() 
         data = response.json()
         
@@ -56,7 +53,6 @@ def get_weather_data(lat, lon):
         }
         
     except requests.exceptions.RequestException as e:
-        # Esto captura cualquier error de conexión o HTTP (como 401 si la clave es incorrecta)
         st.error(f"Error al obtener datos de clima: {e}")
         return None
 
@@ -197,7 +193,7 @@ except pd.errors.ParserError as e:
     
 
 # --- CONFIGURACIÓN INICIAL DE STREAMLIT ---
-st.set_page_config(page_title="AgroDrone Ops", page_icon="🚁", layout="centered")
+st.set_page_config(page_title="AgroDrone Ops", page_icon="favicon.png", layout="centered")
 
 # CARGAR CSS ESTÉTICO EXTERNO
 try:
@@ -206,14 +202,59 @@ try:
 except FileNotFoundError:
     pass
 
-# CSS de sobreescritura interno
+# --- CSS DE SOBREESCRITURA INTERNO (ESTILO NUTRIEN) ---
 st.markdown("""
     <style>
-    .warning { color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px; }
-    .success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; }
-    .metrica-info { border-left: 5px solid #007bff; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa; }
-    .alert-danger-custom { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; font-weight: bold; }
-    .alert-warning-custom { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; font-weight: bold; }
+    /* Fondo General Blanco Puro para legibilidad móvil */
+    .stApp { 
+        background-color: #FFFFFF !important;
+        color: #333333 !important;
+    }
+
+    /* Títulos en Verde Nutrien Oscuro */
+    h1, h2, h3, h4 {
+        color: #002A20 !important;
+        font-weight: 700 !important;
+    }
+    
+    /* Clases de alerta y estados */
+    .warning { border-left: 5px solid #ffcc00; background-color: #fff9e6; color: #856404; padding: 15px; border-radius: 4px; }
+    .success { border-left: 5px solid #88D600; background-color: #f0f9e8; color: #155724; padding: 15px; border-radius: 4px; }
+    
+    /* Estilo para las métricas e información climática */
+    .metrica-info { 
+        border-left: 5px solid #88D600; 
+        padding: 15px; 
+        margin-bottom: 10px; 
+        background-color: #fcfcfc;
+        border-radius: 4px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        color: #333333 !important;
+    }
+
+    .alert-danger-custom { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; font-weight: bold; border-left: 5px solid #dc3545; }
+    .alert-warning-custom { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; font-weight: bold; border-left: 5px solid #ffc107; }
+    
+    /* Ajuste de inputs */
+    .stNumberInput input, .stSelectbox div {
+        border-radius: 4px !important;
+    }
+    
+    /* Botón de Coffee (Mantiene su color llamativo pero con bordes limpios) */
+    .coffee-btn {
+        background-color: #FF813F !important;
+        color: white !important;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: bold;
+        width: 100%;
+        text-align: center;
+        display: block;
+        text-decoration: none;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -267,8 +308,7 @@ with tab1:
         producto_nombre = producto_seleccion
         
         if producto_seleccion == "Otro / Personalizado" or not productos_disponibles: 
-            default_value = "" if not productos_disponibles else "" 
-            producto_nombre = cols[0].text_input("Escribir nombre:", value=default_value, key=f'prod_input_{i}')
+            producto_nombre = cols[0].text_input("Escribir nombre:", value="", key=f'prod_input_{i}')
             if not producto_nombre:
                 continue 
 
@@ -339,9 +379,8 @@ with tab2:
     
     st.markdown("---")
     st.subheader("Orden de Mezcla Sugerido (General)")
-    
     st.markdown("""
-    El orden de mezcla es crítico para evitar el corte del caldo.
+    El orden de mezcla es crítico para evitar el corte del caldo. 
     
     1. **Agua y Corrección (WA/Water Conditioning)**
     2. **Sólidos Secos (WG/SG/WP)**
@@ -396,7 +435,6 @@ with tab3:
 with tab4:
     st.header("☀️ Condiciones para Aplicación")
     
-    # Intenta obtener los datos del clima
     current_data = get_weather_data(LATITUDE, LONGITUDE)
     
     if current_data:
@@ -442,7 +480,7 @@ with tab4:
         st.divider()
         
     else:
-        st.warning("No se pudieron cargar los datos de clima en tiempo real. Esto puede deberse a un problema de conexión o a un error con la clave API.")
+        st.error("No se pudieron cargar los datos de clima en tiempo real. Esto puede deberse a un problema de conexión o a que la clave API no es válida.")
 
 
     # --- ENLACES EXTERNOS FIABLES ---
@@ -499,3 +537,17 @@ with tab5:
     
     *Tecnología al servicio de la aplicación inteligente.*
     """)
+    
+    st.subheader("☕ Apoya el Desarrollo")
+    st.info("Si AgroDrone Ops te ahorró tiempo y dolores de cabeza en el campo, considera apoyar el desarrollo y mantenimiento del proyecto. ¡Cada 'café' ayuda a mantener la app funcionando y las APIs pagadas!")
+
+    BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/gabrielcarc"  
+
+    st.markdown(
+        f"""
+        <a href="{BUY_ME_A_COFFEE_URL}" target="_blank" class="coffee-btn">
+            Buy Me a Coffee (Apoya a Gabriel)
+        </a>
+        """, 
+        unsafe_allow_html=True
+    )
