@@ -6,33 +6,57 @@ import requests
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE CLIMA y APIs ---
+# Usaremos 9 de Julio como ubicación fija de "ejemplo local"
 LATITUDE = -35.4485
 LONGITUDE = -60.8876
+
+# CLAVE API
 OPENWEATHERMAP_API_KEY = "e07ff67318e1b5f6f5bde3dae5b35ec0" 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300) # Cachear el clima por 5 minutos
 def get_weather_data(lat, lon):
+    """Obtiene datos de clima en tiempo real de OpenWeatherMap (ubicación fija/ejemplo)."""
+    
     if not OPENWEATHERMAP_API_KEY:
         return None
+    
     url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={OPENWEATHERMAP_API_KEY}&units=metric&lang=es"
+    
     try:
         response = requests.get(url)
         response.raise_for_status() 
         data = response.json()
+        
         temp_c = data['main']['temp'] 
         humidity_pc = data['main']['humidity'] 
+        # Convertir m/s a km/h
         wind_kmh = data['wind']['speed'] * 3.6 
         weather_desc = data['weather'][0]['description'].capitalize()
         cloudiness_pc = data['clouds']['all'] 
-        rain_prob = 70 if 'lluvia' in weather_desc.lower() or cloudiness_pc > 80 else (30 if cloudiness_pc > 50 else 0)
+        
+        rain_prob = 0
+        if 'lluvia' in weather_desc.lower() or cloudiness_pc > 80:
+             rain_prob = 70
+        elif cloudiness_pc > 50:
+             rain_prob = 30
+        
         return {
-            "T_Actual": f"{temp_c:.1f} °C", "Humedad_Val": humidity_pc, "Humedad_Str": f"{humidity_pc} %",
-            "Viento_Val": wind_kmh, "Viento_Str": f"{wind_kmh:.1f} km/h", "Descripcion": weather_desc,
-            "Nubosidad_Str": f"{cloudiness_pc} %", "Lluvia_Str": f"{rain_prob} %", "Ciudad": data['name']
+            "T_Actual": f"{temp_c:.1f} °C",
+            "Humedad_Val": humidity_pc,
+            "Humedad_Str": f"{humidity_pc} %",
+            "Viento_Val": wind_kmh,
+            "Viento_Str": f"{wind_kmh:.1f} km/h",
+            "Descripcion": weather_desc,
+            "Nubosidad_Str": f"{cloudiness_pc} %",
+            "Lluvia_Str": f"{rain_prob} %",
+            "Ciudad": data['name']
         }
-    except: return None
+        
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error al obtener datos de clima: {e}")
+        return None
 
-# --- VADEMÉCUM DATA (TU BLOQUE ORIGINAL COMPLETO) ---
+# --- VADEMÉCUM DATA (mantener el bloque de datos completo) ---
 csv_data = """
 PRINCIPIO_ACTIVO;DOSIS_MARBETE_MIN;DOSIS_MARBETE_MAX;UNIDAD_DOSIS;FAMILIA_QUIMICA;TIPO_PREPARADO;ALERTA_COMPATIBILIDAD;ORDEN_MEZCLA
 Glyphosate;0.25;1.5;L/ha;Glicina (EPSPS inhibitor);Herbicida;"Evitar pH alcalino, deriva";Medio
@@ -155,112 +179,342 @@ Etoxazole;0.05;0.15;L/ha;Difenil oxazolina;Acaricida;Rotar;Final
 
 vademecum = {}
 productos_disponibles = []
+
 try:
     df = pd.read_csv(io.StringIO(csv_data), sep=";")
     df = df.dropna(subset=['PRINCIPIO_ACTIVO']) 
-    vademecum = df.set_index('PRINCIPIO_ACTIVO').T.to_dict('dict')
-    productos_disponibles = sorted(list(vademecum.keys()))
-except: pass
+    
+    if not df.empty:
+        vademecum = df.set_index('PRINCIPIO_ACTIVO').T.to_dict('dict')
+        productos_disponibles = sorted(list(vademecum.keys()))
+    
+except pd.errors.ParserError as e:
+    st.error(f"Error en el Vademécum (ParserError): {e}")
+    
 
+# --- CONFIGURACIÓN INICIAL DE STREAMLIT ---
+# Apunta al ícono que debes subir a la raíz del repositorio.
 st.set_page_config(page_title="AgroDrone Ops", page_icon="favicon.png", layout="centered")
 
-# CARGAR CSS EXTERNO
+# CARGAR CSS ESTÉTICO EXTERNO
 try:
     with open("style.css") as f:
         st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
-except: pass
+except FileNotFoundError:
+    pass
 
+# CSS de sobreescritura interno: ¡SOLUCIÓN DE COLOR NEGRO Y FONDO BLANCO!
 st.markdown("""
     <style>
-    .stApp { background-color: #FFFFFF !important; color: #000000 !important; }
+    /* 🔴 Solución de compatibilidad de color para móvil */
+    .stApp { 
+        color: #000000 !important; 
+        background-color: #FFFFFF !important; /* <--- FONDO BLANCO PURO AQUI */
+    }
+    
+    .warning { color: #856404; background-color: #fff3cd; padding: 10px; border-radius: 5px; }
+    .success { color: #155724; background-color: #d4edda; padding: 10px; border-radius: 5px; }
+    .metrica-info { border-left: 5px solid #007bff; padding: 10px; margin-bottom: 10px; background-color: #f8f9fa; }
+    .alert-danger-custom { background-color: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; font-weight: bold; }
+    .alert-warning-custom { background-color: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; font-weight: bold; }
+    
     </style>
     """, unsafe_allow_html=True)
 
 st.title("🚁 AgroDrone Ops")
 st.write("Calculadora de Caldo y Vademécum Fitosanitario")
 
-if 'num_productos' not in st.session_state: st.session_state.num_productos = 1
-def add_product(): 
-    if st.session_state.num_productos < 5: st.session_state.num_productos += 1
+if 'num_productos' not in st.session_state:
+    st.session_state.num_productos = 1
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["🧮 Calculadora Caldo", "⛽ Grupo Electrógeno", "📖 Vademécum", "☀️ Tiempo de Vuelo", "👤 Sobre la App"])
 
+def add_product():
+    if st.session_state.num_productos < 5:
+        st.session_state.num_productos += 1
+
+# --- TAB 1: CALCULADORA MIXER ---
 with tab1:
     st.header("Armado del Caldo (Mixer)")
-    c1, c2 = st.columns(2)
-    with c1: t_op = st.selectbox("Mixer [L]", ["100", "200", "300", "500", "Personalizado"])
-    cap_mixer = int(t_op) if t_op != "Personalizado" else st.number_input("L", value=330)
-    with c2: tasa_ap = st.number_input("Tasa Dron (L/ha)", value=10.0)
     
-    ha_totales = st.number_input("Hectáreas Totales", value=20.0)
-    st.subheader("Productos")
-    prods_sel = []
+    col1, col2 = st.columns(2)
+    with col1:
+        tanque_opcion = st.selectbox("Tamaño del Mixer [Litros]", 
+                                     ["100", "200", "300", "500", "Personalizado"])
+        if tanque_opcion == "Personalizado":
+            capacidad_mixer = st.number_input("Ingresar volumen personalizado (L)", value=330, step=10)
+        else:
+            capacidad_mixer = int(tanque_opcion)
+
+    with col2:
+        tasa_aplicacion = st.number_input("Tasa Dron (Líquido/ha)", value=10.0, step=0.5, format="%.1f")
+
+    st.divider()
+    
+    st.subheader("Datos del Lote")
+    hectareas_totales = st.number_input("Hectáreas Totales del Lote", value=20.0, step=1.0)
+    
+    st.subheader("Productos a Aplicar (Dosis por Hectárea)")
+    productos_seleccionados = []
+    
     for i in range(st.session_state.num_productos):
+        st.markdown(f"**Producto #{i+1}**")
         cols = st.columns([0.4, 0.3, 0.3])
-        p_sel = cols[0].selectbox("Producto", ["Otro / Personalizado"] + productos_disponibles, key=f'p{i}')
-        p_nom = p_sel if p_sel != "Otro / Personalizado" else cols[0].text_input("Nombre", key=f'pi{i}')
-        uni = cols[1].selectbox("Unidad", ["L/ha", "kg/ha"], key=f'u{i}')
-        ds = cols[2].number_input("Dosis", value=0.0, key=f'd{i}')
-        if p_nom and ds > 0: prods_sel.append({'n': p_nom, 'u': uni, 'd': ds})
-    
-    if st.session_state.num_productos < 5: st.button("➕ Agregar Producto", on_click=add_product)
-
-    if prods_sel:
-        st.markdown('<div class="ficha-box"><div class="ficha-titulo">REPORTE DE OPERACIÓN</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="seccion-gris">LOTE: {ha_totales} HA | VOLUMEN TOTAL: {ha_totales*tasa_ap:.1f} L</div>', unsafe_allow_html=True)
         
-        for p in prods_sel:
-            total_p = ha_totales * p['d']
-            unidad_limpia = p['u'].split('/')[0]
-            st.markdown(f"""
-            <div class="contenido-blanco">
-                <b>INSUMO: {p['n'].upper()}</b><br>
-                Total para el Lote: {total_p:.2f} {unidad_limpia}<br>
-                Dosis por Carga Mixer ({cap_mixer}L): {(cap_mixer/tasa_ap)*p['d']:.2f} {unidad_limpia}
-            </div>
-            """, unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        opciones_productos = ["Otro / Personalizado"] + productos_disponibles
+        
+        if not productos_disponibles:
+             producto_seleccion = cols[0].selectbox("Principio Activo", options=["Otro / Personalizado"], key=f'prod_select_{i}')
+        else:
+             producto_seleccion = cols[0].selectbox("Principio Activo", options=opciones_productos, key=f'prod_select_{i}')
+        
+        producto_nombre = producto_seleccion
+        
+        if producto_seleccion == "Otro / Personalizado" or not productos_disponibles: 
+            default_value = "" if not productos_disponibles else "" 
+            producto_nombre = cols[0].text_input("Escribir nombre:", value=default_value, key=f'prod_input_{i}')
+            if not producto_nombre:
+                continue 
 
+        unidad = cols[1].selectbox("Unidad Dosis", options=["Litros/ha", "Kg/ha"], key=f'unit_{i}')
+        dosis = cols[2].number_input("Dosis", value=0.0, step=0.1, key=f'dose_{i}')
+        
+        if producto_nombre and dosis > 0:
+            productos_seleccionados.append({
+                'nombre': producto_nombre,
+                'unidad': unidad,
+                'dosis_ha': dosis
+            })
+    
+    if st.session_state.num_productos < 5: 
+        st.button("➕ Agregar Producto", on_click=add_product) 
+
+            
+    volumen_total_caldo = hectareas_totales * tasa_aplicacion
+    
+    st.markdown("---")
+    st.markdown(f"### 📊 Resultados Lote Completo ({hectareas_totales} ha)")
+    st.info(f"**Volumen Total de Caldo Necesario:** {volumen_total_caldo:.1f} Litros")
+    
+    resumen_impresion = f"--- PLANIFICACIÓN DE APLICACIÓN ---\n"
+    resumen_impresion += f"Lote: {hectareas_totales} ha\n"
+    resumen_impresion += f"Tasa de aplicación: {tasa_aplicacion} L/ha\n"
+    resumen_impresion += f"Capacidad del Mixer: {capacidad_mixer} L\n"
+    resumen_impresion += f"Volumen Total de Caldo: {volumen_total_caldo:.1f} L\n\n"
+    resumen_impresion += "--- INSUMOS TOTALES ---\n"
+    
+    for producto in productos_seleccionados:
+        nombre = producto['nombre']
+        dosis_ha = producto['dosis_ha']
+        unidad = producto['unidad'].split('/')[0] 
+        
+        producto_total_necesario = hectareas_totales * dosis_ha
+        
+        st.success(f"**Total de {nombre} a utilizar:** {producto_total_necesario:.2f} {unidad}") 
+        resumen_impresion += f"- {nombre}: {producto_total_necesario:.2f} {unidad}\n"
+        
+        dosis_por_mixer_completo = (capacidad_mixer / tasa_aplicacion) * dosis_ha
+        cargas_completas = math.floor(volumen_total_caldo / capacidad_mixer)
+        remanente_volumen = volumen_total_caldo % capacidad_mixer
+
+        st.markdown(f"##### Dosis de {nombre} en el Mixer:")
+        if cargas_completas > 0:
+            st.write(f"- En cada una de las **{cargas_completas}** cargas completas: **{dosis_por_mixer_completo:.2f} {unidad}**")
+        
+        if remanente_volumen > 0:
+            dosis_remanente = (remanente_volumen / tasa_aplicacion) * dosis_ha
+            st.write(f"- En la carga final de **{remanente_volumen:.1f} Litros**: **{dosis_remanente:.2f} {unidad}**")
+            
+    st.markdown("---")
+    st.download_button(
+        label="🖨️ Imprimir Resumen de Aplicación (TXT)",
+        data=resumen_impresion,
+        file_name=f'Planificacion_Lote_{hectareas_totales}ha.txt',
+        mime='text/plain'
+    )
+
+# --- TAB 2: GRUPO ELECTRÓGENO ---
 with tab2:
-    st.header("⛽ Combustible")
-    cons = st.number_input("Consumo Gen (L/ha)", value=1.0)
-    st.success(f"Combustible Total: {ha_totales*cons:.1f} L")
+    st.header("⛽ Cálculo de Combustible para Grupo Electrógeno")
+    consumo_gen = st.number_input("Consumo Grupo Electrógeno (Litros/ha de aplicación)", value=1.0, step=0.1) 
+    total_nafta = hectareas_totales * consumo_gen
+    
+    st.success(f"**Combustible Necesario:** {total_nafta:.1f} Litros de Nafta/Gasolina para el generador.")
+    
+    st.markdown("---")
+    st.subheader("Orden de Mezcla Sugerido (General)")
+    st.markdown("""
+    El orden de mezcla es crítico para evitar el corte del caldo. 
+    
+    1. **Agua y Corrección (WA/Water Conditioning)**
+    2. **Sólidos Secos (WG/SG/WP)**
+    3. **Suspensiones Acuosas (SC/CS)**
+    4. **Emulsiones (EC/EW/OD)**
+    5. **Líquidos Solubles (SL)**
+    6. **Coadyuvantes / Surfactantes / Aceites**
+    7. **Completar con el resto de agua**
+    """)
 
+# --- TAB 3: VADEMÉCUM ---
 with tab3:
-    st.header("🔍 Consulta Vademécum")
-    busqueda = st.selectbox("Seleccionar Principio Activo", [""] + productos_disponibles)
-    if busqueda:
-        d = vademecum[busqueda]
-        st.markdown(f"""
-        <div class="ficha-box">
-            <div class="ficha-titulo">FICHA TÉCNICA: {busqueda.upper()}</div>
-            <div class="seccion-gris">CARACTERÍSTICAS GENERALES</div>
-            <div class="contenido-blanco">
-                <b>Tipo de Producto:</b> {d['TIPO_PREPARADO']}<br>
-                <b>Familia Química:</b> {d['FAMILIA_QUIMICA']}
-            </div>
-            <div class="seccion-gris">DOSIFICACIÓN Y MEZCLA</div>
-            <div class="contenido-blanco">
-                <b>Dosis de Marbete:</b> {d['DOSIS_MARBETE_MIN']} - {d['DOSIS_MARBETE_MAX']} {d['UNIDAD_DOSIS']}<br>
-                <b>Orden Sugerido en Mezcla:</b> {d['ORDEN_MEZCLA']}
-            </div>
-            <div class="seccion-gris" style="background-color: #fce8e8; color: #b71c1c;">ALERTAS Y COMPATIBILIDAD</div>
-            <div class="contenido-blanco" style="color: #b71c1c; font-weight: bold;">
-                {d['ALERTA_COMPATIBILIDAD']}
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    st.header("🔍 Vademécum Fitosanitario")
+    
+    if vademecum:
+        st.info("⚠️ **IMPORTANTE:** El Vademécum se cargó correctamente. Verifica el campo 'Alerta de Compatibilidad' antes de mezclar.")
+        opciones_busqueda = [""] + productos_disponibles
+        busqueda = st.selectbox("Buscar Principio Activo o Producto", opciones_busqueda)
+        
+        if busqueda in vademecum:
+            data = vademecum[busqueda]
+            st.markdown(f"### {busqueda}")
+            
+            dosis_min = data['DOSIS_MARBETE_MIN']
+            dosis_max = data['DOSIS_MARBETE_MAX']
+            unidad_dosis = data['UNIDAD_DOSIS']
+            
+            if isinstance(dosis_min, (int, float)) and isinstance(dosis_max, (int, float)) and dosis_min == 0 and dosis_max == 0:
+                dosis_str = unidad_dosis
+            else:
+                dosis_str = f"{dosis_min} - {dosis_max} {unidad_dosis}"
 
+            ficha_tecnica = {
+                "Dosis Marbete (Mín - Máx)": dosis_str,
+                "Familia Química": data['FAMILIA_QUIMICA'],
+                "Tipo Preparado": data['TIPO_PREPARADO'],
+                "Orden Sugerido": data['ORDEN_MEZCLA'],
+                "Alerta de Compatibilidad": data['ALERTA_COMPATIBILIDAD']
+            }
+            
+            df_ficha = pd.DataFrame([ficha_tecnica]).T.rename(columns={0: "Detalle"})
+            st.table(df_ficha)
+            
+            st.markdown(f'<div class="warning">**🚨 Alerta de Mezcla:** {data["ALERTA_COMPATIBILIDAD"]}</div>', unsafe_allow_html=True)
+        else:
+            st.info("Selecciona un principio activo de la lista para ver su ficha técnica, dosis de marbete y alertas de mezcla.")
+    else:
+        st.warning("⚠️ **Vademécum no cargado/vacío.**")
+
+
+# --- TAB 4: TIEMPO DE VUELO ---
 with tab4:
-    st.header("☀️ Condiciones de Vuelo")
-    weather = get_weather_data(LATITUDE, LONGITUDE)
-    if weather:
-        st.metric("Viento", weather['Viento_Str'])
-        st.metric("Humedad", weather['Humedad_Str'])
-        if weather['Viento_Val'] > 20: st.error("¡ALERTA! Viento excesivo.")
-        else: st.success("Condiciones aptas para volar.")
+    st.header("☀️ Condiciones para Aplicación")
+    
+    current_data = get_weather_data(LATITUDE, LONGITUDE)
+    
+    if current_data:
+        st.subheader(f"📋 Condiciones Críticas (Ejemplo Local: {current_data['Ciudad']})")
+        st.caption(f"Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}")
+        
+        dcols = st.columns(4)
+        dcols[0].metric("Temperatura Actual", current_data['T_Actual'])
+        dcols[1].metric("Humedad Relativa", current_data['Humedad_Str'])
+        dcols[2].metric("Viento", current_data['Viento_Str'])
+        dcols[3].metric("Prob. Lluvia", current_data['Lluvia_Str'])
+        
+        # --- LÓGICA DE ALERTA DE VUELO ---
+        wind_speed_val = current_data['Viento_Val']
+        humidity_val = current_data['Humedad_Val']
+        
+        alerta_viento = ""
+        alerta_humedad = ""
 
+        if wind_speed_val > 20.0:
+            alerta_viento = f"**❌ Viento Excesivo:** {current_data['Viento_Str']}. Vuelo NO Apto (Alto riesgo de deriva)."
+        elif wind_speed_val > 15.0:
+            alerta_viento = f"**⚠️ Precaución Viento:** {current_data['Viento_Str']}. Monitorear ráfagas."
+        else:
+            alerta_viento = f"**✅ Viento Óptimo:** {current_data['Viento_Str']}."
+
+        if humidity_val < 50:
+            alerta_humedad = f"**⚠️ Humedad Baja:** {current_data['Humedad_Str']}. Riesgo de evaporación rápida del caldo."
+        elif humidity_val > 90:
+            alerta_humedad = f"**⚠️ Humedad Alta:** {current_data['Humedad_Str']}. Riesgo de escurrimiento (run-off)."
+        else:
+            alerta_humedad = f"**✅ Humedad Aceptable:** {current_data['Humedad_Str']}."
+
+        st.markdown("---")
+        st.markdown(f'<div class="metrica-info">{alerta_viento}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="metrica-info">{alerta_humedad}</div>', unsafe_allow_html=True)
+
+        if wind_speed_val > 20.0 or humidity_val < 30 or humidity_val > 95:
+             st.markdown('<div class="alert-danger-custom">🔴 RECOMENDACIÓN: DETENER LA APLICACIÓN. Condiciones CRÍTICAS.</div>', unsafe_allow_html=True)
+        else:
+             st.markdown('<div class="success">🟢 RECOMENDACIÓN: Condiciones favorables para aplicar. (Mantener vigilancia).</div>', unsafe_allow_html=True)
+        
+        st.divider()
+        
+    else:
+        st.error("No se pudieron cargar los datos de clima en tiempo real. Esto puede deberse a un problema de conexión o a que la clave API no es válida.")
+
+
+    # --- ENLACES EXTERNOS FIABLES ---
+    st.markdown("### 🔗 Pronóstico Extendido y Condiciones de Vuelo")
+    st.markdown("Para condiciones específicas de tu lote y pronóstico extendido (T°, Lluvia, Viento), utiliza estas fuentes confiables:")
+    
+    col_kp, col_weather = st.columns(2)
+
+    with col_kp:
+        st.markdown("**🛰️ Riesgo Geomagnético (KP)**")
+        st.markdown(
+            """
+            <a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">
+                <button style="background-color: #ff9900; color: white; padding: 10px 10px; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
+                    Ver KP en NOAA
+                </button>
+            </a>
+            """, unsafe_allow_html=True
+        )
+    
+    with col_weather:
+        st.markdown("**⛈️ Pronóstico Meteorológico Completo**")
+        st.markdown(
+            """
+            <a href="https://www.windy.com/?-35.950,-60.890,10" target="_blank">
+                <button style="background-color: #007bff; color: white; padding: 10px 10px; border: none; border-radius: 5px; cursor: pointer; width: 100%;">
+                    Ver Windy.com (Viento/Precipitación)
+                </button>
+            </a>
+            """, unsafe_allow_html=True
+        )
+
+# --- TAB 5: SOBRE LA APP ---
 with tab5:
-    st.header("👤 Sobre la App")
-    st.write("Desarrollado por Gabriel Carrasco.")
-    st.markdown(f'<a href="https://www.buymeacoffee.com/gabrielcarc" target="_blank"><button style="background-color: #FF813F; color: white; width: 100%; border:none; padding:10px; border-radius:5px; font-weight:bold; cursor:pointer;">Apoyar con un Café</button></a>', unsafe_allow_html=True)
+    st.header("👤 Sobre AgroDrone Ops")
+    
+    st.markdown("""
+    ### Un Saludo de Gabriel Carrasco
+    
+    ¡Gracias por usar AgroDrone Ops!
+    
+    Esta aplicación nació de la necesidad práctica de tener herramientas rápidas y confiables en el campo, sin depender de papeles o cálculos complejos bajo el sol. Es una **herramienta de recreación y ayuda** diseñada por un aplicador para aplicadores.
+    
+    Está pensada para:
+    * **Simplificar el armado del Caldo (Mixer):** Asegurando las dosis correctas por carga.
+    * **Maximizar la eficiencia:** Calculando combustible y verificando las condiciones climáticas críticas.
+    * **Seguridad:** Ofreciendo una guía de mezcla y un acceso rápido a pronósticos externos confiables (Viento, Lluvia, Índice KP).
+    
+    **El objetivo no es reemplazar la experiencia del aplicador, sino complementarla.** Siempre utiliza los datos de marbete del fabricante como guía principal y verifica todas las condiciones in situ antes de cada vuelo.
+    
+    ---
+    
+    **Desarrollado por:** Gabriel Carrasco
+    
+    *Tecnología al servicio de la aplicación inteligente.*
+    """)
+    
+    st.subheader("☕ Apoya el Desarrollo")
+    st.info("Si AgroDrone Ops te ahorró tiempo y dolores de cabeza en el campo, considera apoyar el desarrollo y mantenimiento del proyecto. ¡Cada 'café' ayuda a mantener la app funcionando y las APIs pagadas!")
+
+    # Enlace de Buy Me a Coffee con tu usuario
+    BUY_ME_A_COFFEE_URL = "https://www.buymeacoffee.com/gabrielcarc"  
+
+    st.markdown(
+        f"""
+        <a href="{BUY_ME_A_COFFEE_URL}" target="_blank">
+            <button style="background-color: #FF813F; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%;">
+                Buy Me a Coffee (Apoya a Gabriel)
+            </button>
+        </a>
+        """, 
+        unsafe_allow_html=True
+    )
