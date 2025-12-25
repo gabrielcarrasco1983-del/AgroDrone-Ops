@@ -1,4 +1,4 @@
-/* FUENTE INSTITUCIONAL */
+/* FUENTE Y COLORES NUTRIEN */
 @import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;700&display=swap');
 
 html, body, [class*="css"] {
@@ -6,59 +6,56 @@ html, body, [class*="css"] {
     background-color: #FFFFFF;
 }
 
-/* CONTENEDOR TIPO FICHA TÉCNICA (PDF STYLE) */
-.ficha-tecnica {
-    border: 1px solid #e0e0e0;
-    border-radius: 0px; /* Bordes rectos como el PDF */
-    margin-bottom: 20px;
+/* CONTENEDOR TIPO FICHA TÉCNICA */
+.ficha-box {
+    border: 1px solid #002A20;
+    margin-top: 15px;
+    margin-bottom: 25px;
     background-color: #ffffff;
 }
 
-.ficha-header {
-    background-color: #002A20; /* Verde muy oscuro Nutrien */
+.ficha-titulo {
+    background-color: #002A20;
     color: #ffffff !important;
-    padding: 15px;
-    font-size: 20px;
+    padding: 12px;
     font-weight: 700;
+    text-align: center;
     text-transform: uppercase;
-    border-bottom: 4px solid #88D600; /* Línea verde brillante */
+    font-size: 1.1rem;
+    letter-spacing: 1px;
 }
 
-.ficha-seccion-titulo {
-    background-color: #f2f9eb; /* Fondo verde muy claro */
-    color: #002A20;
+.seccion-gris {
+    background-color: #F2F2F2;
     padding: 8px 15px;
     font-weight: 700;
-    font-size: 14px;
+    color: #002A20;
     text-transform: uppercase;
-    border-top: 1px solid #e0e0e0;
-    border-bottom: 1px solid #e0e0e0;
+    font-size: 0.85rem;
+    border-top: 1px solid #002A20;
+    border-bottom: 1px solid #d1d1d1;
 }
 
-.ficha-contenido {
+.contenido-blanco {
     padding: 15px;
-    font-size: 14px;
-    line-height: 1.6;
+    background-color: white;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: #333333;
 }
 
-/* BOTONES ESTILO CORPORATIVO */
+/* BOTONES */
 .stButton > button {
     background-color: #88D600 !important;
     color: #002A20 !important;
-    border-radius: 2px !important;
+    border-radius: 4px !important;
     border: none !important;
     font-weight: 700 !important;
-    text-transform: uppercase;
-    width: 100%;
+    height: 45px;
+    transition: 0.3s;
 }
 
-/* TABS ESTILO NUTRIEN PDF */
-.stTabs [data-baseweb="tab-list"] {
-    background-color: #f8f9fa;
-    border-bottom: 2px solid #002A20;
-}
-
-.stTabs [aria-selected="true"] {
-    color: #88D600 !important;
-    font-weight: bold;
+.stButton > button:hover {
+    background-color: #002A20 !important;
+    color: #ffffff !important;
 }
