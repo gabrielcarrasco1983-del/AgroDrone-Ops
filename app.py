@@ -5,155 +5,127 @@ import requests
 from urllib.parse import quote
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="AgroDrone Pro", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="AgroDrone Pro", layout="wide")
 
-# --- ESTILOS CSS (Fix para móviles y diseño profesional) ---
+# --- ESTILOS CSS (Móvil y Legibilidad) ---
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF !important; color: #000000 !important; }
-    
-    /* FIX MENÚ TABS MÓVIL */
-    .stTabs [data-baseweb="tab"] p {
-        color: #002A20 !important;
-        font-weight: 600 !important;
-        font-size: 0.9rem !important;
-    }
+    .stTabs [data-baseweb="tab"] p { color: #002A20 !important; font-weight: 600; font-size: 0.9rem; }
     .stTabs [aria-selected="true"] { border-bottom-color: #88D600 !important; }
     .stTabs [aria-selected="true"] p { color: #88D600 !important; }
-
-    /* Tarjetas de métricas */
-    .metric-card {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 10px;
-        border-left: 5px solid #88D600;
-        margin-bottom: 10px;
-    }
+    .stWidget label p { color: #000000 !important; font-weight: bold; }
     
-    .delta-ideal { color: #155724; background-color: #d4edda; padding: 5px; border-radius: 5px; font-weight: bold; }
-    .delta-warning { color: #856404; background-color: #fff3cd; padding: 5px; border-radius: 5px; font-weight: bold; }
-    .delta-danger { color: #721c24; background-color: #f8d7da; padding: 5px; border-radius: 5px; font-weight: bold; }
+    .resumen-carga {
+        background-color: #f1f3f5;
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 10px solid #88D600;
+        margin: 10px 0;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNCIONES LÓGICAS ---
-
+# --- FUNCIONES AUXILIARES ---
 def calculate_delta_t(temp, humidity):
-    """Calcula el Delta T usando la fórmula de Stull para temperatura de bulbo húmedo."""
     tw = temp * math.atan(0.151977 * (humidity + 8.313659)**0.5) + \
          math.atan(temp + humidity) - math.atan(humidity - 1.676331) + \
          0.00391838 * (humidity**1.5) * math.atan(0.023101 * humidity) - 4.686035
     return round(temp - tw, 2)
 
-def get_weather_data(lat, lon, api_key):
-    url = f"https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={api_key}&units=metric&lang=es"
-    try:
-        r = requests.get(url, timeout=5)
-        return r.json() if r.status_code == 200 else None
-    except:
-        return None
-
 # --- UI PRINCIPAL ---
-st.title("🚁 AgroDrone Pro Operations")
+st.title("🚁 Sistema de Carga AgroDrone")
 
-tabs = st.tabs(["🧪 Mezclas", "☁️ Clima & Delta T", "📏 Calculadora Área", "⚠️ Compatibilidad"])
+tabs = st.tabs(["🧪 Mezcla de Químicos", "☁️ Clima & Delta T", "📏 Área Restante"])
 
-# --- TAB 1: MEZCLAS Y WHATSAPP ---
 with tabs[0]:
-    st.subheader("Configuración de Carga")
-    c1, c2 = st.columns(2)
+    st.subheader("Configuración del Tanque")
+    c1, c2, c3 = st.columns(3)
     with c1:
-        tanque = st.number_input("Capacidad Tanque (L)", value=30.0)
-        vol_ha = st.number_input("Caudal (L/Ha)", value=10.0)
+        tanque_cap = st.number_input("Capacidad Tanque (L)", value=30.0, step=1.0)
     with c2:
-        dosis_prod = st.number_input("Dosis Producto (L/Ha o Kg/Ha)", value=1.5)
-        lote_nombre = st.text_input("Nombre del Lote", "Lote Norte")
+        vol_ha = st.number_input("Caudal de Aplicación (L/Ha)", value=10.0, step=1.0)
+    with c3:
+        nombre_lote = st.text_input("Lote / Trabajo", "Lote 1")
 
-    if vol_ha > 0:
-        has_tanque = tanque / vol_ha
-        prod_tanque = has_tanque * dosis_prod
-        
-        st.markdown(f"""
-        <div class="metric-card">
-            <h4>Resumen por Tanque:</h4>
-            <p>✅ <b>Has por vuelo:</b> {has_tanque:.2f} ha</p>
-            <p>✅ <b>Producto a cargar:</b> {prod_tanque:.2f} L (o Kg)</p>
-            <p>✅ <b>Agua aproximada:</b> {tanque - prod_tanque:.2f} L</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Botón Compartir WhatsApp
-        msg = f"*REPORTE DE CARGA - {lote_nombre}*\n" \
-              f"Tanque: {tanque}L\n" \
-              f"Caudal: {vol_ha} L/Ha\n" \
-              f"--- CARGAR POR TANQUE ---\n" \
-              f"💧 Agua: {tanque - prod_tanque:.2f} L\n" \
-              f"🧪 Producto: {prod_tanque:.2f} L/Kg\n" \
-              f"📍 Cubre: {has_tanque:.2f} Has"
-        
-        wa_url = f"https://wa.me/?text={quote(msg)}"
-        st.markdown(f'[@ Enviar Instrucciones por WhatsApp]({wa_url})')
+    has_por_tanque = tanque_cap / vol_ha if vol_ha > 0 else 0
+    st.info(f"💡 Con un tanque lleno cubrirás: **{has_por_tanque:.2f} Hectáreas**")
 
     st.markdown("---")
-    st.caption("📦 **Orden de Carga (WALES):** 1. Polvos (W) -> 2. Agitación (A) -> 3. Líquidos (L) -> 4. Emulsiones (E) -> 5. Surfactantes (S)")
+    st.subheader("Lista de Productos (Químicos)")
+    
+    # Tabla interactiva para agregar productos
+    df_init = pd.DataFrame([
+        {"Producto": "Glifosato", "Dosis/Ha": 2.0, "Unidad": "L"},
+        {"Producto": "Coadyuvante", "Dosis/Ha": 0.2, "Unidad": "L"}
+    ])
+    
+    # Usamos data_editor para que el usuario agregue filas fácilmente
+    edited_df = st.data_editor(
+        df_init, 
+        num_rows="dynamic", 
+        use_container_width=True,
+        column_config={
+            "Unidad": st.column_config.SelectboxColumn(options=["L", "cc", "Kg", "gr"])
+        }
+    )
 
-# --- TAB 2: CLIMA Y DELTA T ---
+    if has_por_tanque > 0:
+        st.markdown('<div class="resumen-carga">', unsafe_allow_html=True)
+        st.markdown("### 📋 RECETA POR TANQUE")
+        
+        lista_whatsapp = []
+        for index, row in edited_df.iterrows():
+            total_prod = row["Dosis/Ha"] * has_por_tanque
+            st.write(f"🔹 **{row['Producto']}:** {total_prod:.3f} {row['Unidad']}")
+            lista_whatsapp.append(f"- {row['Producto']}: {total_prod:.3f} {row['Unidad']}")
+        
+        # Cálculo de agua
+        total_quimicos_l = 0 # Simplificado para el ejemplo
+        st.write(f"💧 **Agua:** Completar hasta los {tanque_cap} L")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Botón WhatsApp mejorado
+        msg = f"*ORDEN DE CARGA: {nombre_lote}*\n" \
+              f"Tanque: {tanque_cap}L | Caudal: {vol_ha}L/Ha\n" \
+              f"Cubre: {has_por_tanque:.2f} Has por vuelo\n" \
+              f"--- PRODUCTOS POR TANQUE ---\n" + "\n".join(lista_whatsapp) + \
+              f"\n---" \
+              f"\n_Generado por AgroDrone Ops_"
+        
+        wa_url = f"https://wa.me/?text={quote(msg)}"
+        st.markdown(f'''
+            <a href="{wa_url}" target="_blank" style="text-decoration:none;">
+                <div style="background-color:#25D366; color:white; padding:12px; border-radius:8px; text-align:center; font-weight:bold;">
+                    📲 Enviar Receta al Ayudante (WhatsApp)
+                </div>
+            </a>
+        ''', unsafe_allow_html=True)
+
 with tabs[1]:
-    st.subheader("Condiciones de Aplicación")
+    st.subheader("Monitoreo Delta T")
+    c1, c2 = st.columns(2)
+    temp = c1.number_input("Temperatura (°C)", value=25.0)
+    hum = c2.number_input("Humedad (%)", value=60.0)
     
-    modo_clima = st.radio("Fuente de datos:", ["API Online", "Entrada Manual (Seguro)"], horizontal=True)
+    dt = calculate_delta_t(temp, hum)
+    st.metric("Delta T", f"{dt} °C")
     
-    temp, hum, wind = 0.0, 0.0, 0.0
     
-    if modo_clima == "API Online":
-        data = get_weather_data(-35.4485, -60.8876, "e07ff67318e1b5f6f5bde3dae5b35ec0")
-        if data:
-            temp = data['main']['temp']
-            hum = data['main']['humidity']
-            wind = data['wind']['speed'] * 3.6
-            st.success(f"Datos de {data['name']} obtenidos.")
-        else:
-            st.error("Error de conexión. Usa el Modo Manual.")
-    else:
-        c1, c2, c3 = st.columns(3)
-        temp = c1.number_input("Temp (°C)", value=25.0)
-        hum = c2.number_input("Humedad (%)", value=60.0)
-        wind = c3.number_input("Viento (km/h)", value=10.0)
 
-    delta_t = calculate_delta_t(temp, hum)
-    
-    # Visualización Delta T
-    st.metric("Delta T (ΔT)", f"{delta_t} °C")
-    
-    if 2 <= delta_t <= 8:
-        st.markdown('<div class="delta-ideal">✅ ÓPTIMO: Condiciones ideales para pulverizar.</div>', unsafe_allow_html=True)
-    elif delta_t < 2:
-        st.markdown('<div class="delta-warning">⚠️ RIESGO: Supervivencia de gotas alta, riesgo de deriva por inversión.</div>', unsafe_allow_html=True)
+    if 2 <= dt <= 8:
+        st.success("✅ ÓPTIMO: Adelante con la aplicación.")
+    elif dt < 2:
+        st.warning("⚠️ PRECAUCIÓN: Riesgo de deriva (gotas muy grandes/inversión).")
     else:
-        st.markdown('<div class="delta-danger">❌ EVITAR: Evaporación muy rápida. Gotas no llegan al objetivo.</div>', unsafe_allow_html=True)
+        st.error("❌ NO APLICAR: Evaporación excesiva.")
 
-# --- TAB 3: ÁREA RESTANTE ---
 with tabs[2]:
-    st.subheader("Calculadora de 'Caldo' Restante")
-    st.info("¿Te sobró mezcla en el tanque? Mira cuánto más puedes pulverizar.")
-    litros_sobra = st.number_input("Litros en el tanque", value=5.0)
-    caudal_actual = st.number_input("Caudal configurado (L/Ha)", value=10.0, key="caudal_rest")
-    
-    if caudal_actual > 0:
-        area_posible = litros_sobra / caudal_actual
-        st.warning(f"Puedes cubrir **{area_posible * 10000:.0f} m²** ({area_posible:.2f} Has) adicionales.")
+    st.subheader("Cálculo de Área por Remanente")
+    litros_quedan = st.number_input("¿Cuántos litros quedan en el drone?", value=0.0)
+    if vol_ha > 0:
+        area_m2 = (litros_quedan / vol_ha) * 10000
+        st.info(f"Con {litros_quedan}L puedes cubrir **{area_m2:.0f} m²** adicionales.")
 
-# --- TAB 4: COMPATIBILIDAD ---
-with tabs[3]:
-    st.subheader("Guía de Compatibilidad (Referencia)")
-    compat_data = {
-        "Mezcla": ["Glifosato + 2,4-D", "Graminicida + Aceite", "Insecticida + Fungicida", "Abono Foliar + Herbicida"],
-        "Estado": ["Compatible*", "Obligatorio", "Generalmente OK", "Cuidado (Check pH)"],
-        "Nota": ["Puede requerir corrector de agua", "Mejora absorción", "Mezclar bien", "Puede precipitar"]
-    }
-    st.table(pd.DataFrame(compat_data))
-    st.caption("* Siempre realice una 'Prueba de Jarra' antes de llenar el mixer.")
-
-# --- PIE DE PÁGINA ---
 st.markdown("---")
-st.markdown("Desarrollado por **Gabriel Carrasco** | ☕ [Invítame un café](https://www.buymeacoffee.com/gabrielcarc)")
+st.caption("Gabriel Carrasco - AgroDrone Solutions")
