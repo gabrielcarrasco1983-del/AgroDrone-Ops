@@ -7,26 +7,26 @@ from urllib.parse import quote
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="AGRODRONE DOSIS", layout="wide")
 
-# --- CSS DE ALTO CONTRASTE PARA CAMPO (TEXTO NEGRO PURO) ---
+# --- CSS ALTO CONTRASTE (MÓVIL Y CAMPO) ---
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF !important; color: #000000 !important; }
     
-    /* Forzar negro en etiquetas y textos */
-    label p, .stMarkdown p, .stSelectbox label p, .stNumberInput label p, .stTextInput label p {
+    /* Texto negro puro y grueso para etiquetas */
+    label p, .stMarkdown p, .stTextInput label p, .stNumberInput label p, .stSelectbox label p {
         color: #000000 !important;
         font-weight: 800 !important;
         font-size: 1.1rem !important;
     }
 
-    /* Pestañas */
+    /* Pestañas visibles */
     .stTabs [data-baseweb="tab"] p {
         color: #000000 !important;
         font-weight: bold !important;
     }
     .stTabs [aria-selected="true"] { border-bottom-color: #002A20 !important; }
 
-    /* Resultados */
+    /* Cajas de resultados */
     .resumen-caja {
         background-color: #f1f3f5;
         padding: 20px;
@@ -45,17 +45,16 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- BASE DE DATOS VADEMÉCUM (RESUMIDA PARA EL EJEMPLO, PERO COMPLETA EN TU LÓGICA) ---
+# --- VADEMÉCUM DATA ---
 csv_data = """PRINCIPIO_ACTIVO;DOSIS_MARBETE_MIN;DOSIS_MARBETE_MAX;UNIDAD_DOSIS;FAMILIA_QUIMICA;TIPO_PREPARADO;ALERTA_COMPATIBILIDAD;ORDEN_MEZCLA
 Glyphosate;0.25;1.5;L/ha;Glicina;Herbicida;"Evitar pH alcalino";Medio
 2,4-D;0.5;1.5;L/ha;Fenoxiacético;Herbicida;"Deriva/Volatilidad";Medio
 Atrazine;0.5;3;kg/ha;Triazina;Herbicida;Persistente;Temprano
 Dicamba;0.1;0.5;L/ha;Benzoico;Herbicida;Volatilidad;Medio
 Abamectin;0.05;0.1;L/ha;Avermectina;Acaricida;Tóxico abejas;Medio"""
-# [Aquí incluyes los 114 productos que tienes en tu archivo original]
+# (Aquí van tus 114 productos)
 
 vademecum_df = pd.read_csv(io.StringIO(csv_data), sep=";")
-lista_sugerencias = sorted(vademecum_df['PRINCIPIO_ACTIVO'].unique().tolist())
 
 # --- FUNCIONES ---
 def calculate_delta_t(temp, hum):
@@ -81,17 +80,19 @@ with tabs[0]:
         tasa = st.number_input("Caudal Dron (L/Ha)", value=10.0, step=1.0)
 
     st.divider()
-    st.subheader("Productos (Escribe el nombre que desees)")
+    st.subheader("Productos a Aplicar")
     
     if 'filas' not in st.session_state:
         st.session_state.filas = [{"p": "", "d": 0.0, "u": "L"}]
 
+    # Renderizado de filas de productos
     for i, fila in enumerate(st.session_state.filas):
         col1, col2, col3 = st.columns([0.5, 0.25, 0.25])
-        # CAMBIO CLAVE: text_input libre en lugar de selectbox rígido
-        st.session_state.filas[i]["p"] = col1.text_input(f"Producto {i+1}", value=fila["p"], key=f"prod_{i}", help="Escribe cualquier nombre")
-        st.session_state.filas[i]["d"] = col2.number_input(f"Dosis/Ha", value=fila["d"], key=f"dose_{i}")
-        st.session_state.filas[i]["u"] = col3.selectbox("Unidad", ["L", "Kg"], key=f"unit_{i}")
+        
+        # Entrada directa de texto (Sin selectbox previo)
+        st.session_state.filas[i]["p"] = col1.text_input(f"Nombre del Producto {i+1}", value=fila["p"], key=f"p_{i}", placeholder="Ej: Glifosato, Agua, etc.")
+        st.session_state.filas[i]["d"] = col2.number_input(f"Dosis/Ha", value=fila["d"], key=f"d_{i}", format="%.2f")
+        st.session_state.filas[i]["u"] = col3.selectbox("Unidad", ["L", "Kg"], key=f"u_{i}")
 
     if st.button("➕ Añadir otro producto"):
         st.session_state.filas.append({"p": "", "d": 0.0, "u": "L"})
@@ -104,63 +105,68 @@ with tabs[0]:
         st.markdown(f"""
         <div class="resumen-caja">
             <h3>🧪 CARGA POR MIXER ({c_mixer}L)</h3>
-            <p>📍 Cubre: <b>{has_vuelo:.2f} Hectáreas</b></p>
+            <p>📍 Superficie por carga: <b>{has_vuelo:.2f} Hectáreas</b></p>
         """, unsafe_allow_html=True)
         
         txt_wa = []
-        totales_lote = []
+        totales_lista = []
         for f in st.session_state.filas:
             if f["d"] > 0:
-                p_nombre = f["p"] if f["p"] != "" else "Producto sin nombre"
-                cant_mixer = f["d"] * has_vuelo
-                cant_total = f["d"] * has_lote
+                # Si no escribió nombre, usamos un genérico
+                p_final = f["p"] if f["p"] != "" else f"Producto {st.session_state.filas.index(f)+1}"
                 
-                st.write(f"✅ **{p_nombre}:** {cant_mixer:.3f} {f['u']}")
-                txt_wa.append(f"- {p_nombre}: {cant_mixer:.3f}{f['u']}")
-                totales_lote.append(f"📦 **{p_nombre}:** {cant_total:.2f} {f['u']}")
+                # Cálculo Mixer
+                cant_mixer = f["d"] * has_vuelo
+                st.write(f"✅ **{p_final}:** {cant_mixer:.3f} {f['u']}")
+                txt_wa.append(f"- {p_final}: {cant_mixer:.3f}{f['u']}")
+                
+                # Cálculo Total Lote
+                cant_total = f["d"] * has_lote
+                totales_lista.append(f"📦 **{p_final}:** {cant_total:.2f} {f['u']}")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown(f"""
         <div class="total-lote-caja">
-            <h4>📊 TOTAL PARA TODO EL LOTE ({has_lote} Ha)</h4>
-            <p>Cargas de mixer necesarias: <b>{math.ceil(mixers_totales)}</b></p>
+            <h4>📊 TOTAL REQUERIDO PARA EL LOTE ({has_lote} Ha)</h4>
+            <p>Preparaciones de mixer: <b>{math.ceil(mixers_totales)}</b></p>
         """, unsafe_allow_html=True)
-        for t in totales_lote:
+        for t in totales_lista:
             st.write(t)
         st.markdown("</div>", unsafe_allow_html=True)
 
+        # Botón WhatsApp
         msg = f"*AGRODRONE DOSIS*\nMixer: {c_mixer}L\nCubre: {has_vuelo:.2f}Ha\n---\n" + "\n".join(txt_wa)
-        st.markdown(f'<a href="https://wa.me/?text={quote(msg)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">📲 ENVIAR ORDEN WHATSAPP</button></a>', unsafe_allow_html=True)
+        st.markdown(f'<a href="https://wa.me/?text={quote(msg)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">📲 ENVIAR ORDEN AL MIXERO</button></a>', unsafe_allow_html=True)
 
 # --- TAB 2: DELTA T ---
 with tabs[1]:
     st.subheader("Condiciones Delta T")
     ct, ch = st.columns(2)
-    temp = ct.number_input("Temperatura (°C)", value=25.0)
-    hum = ch.number_input("Humedad (%)", value=60.0)
-    dt = calculate_delta_t(temp, hum)
-    st.metric("Delta T", f"{dt} °C")
+    t_val = ct.number_input("Temperatura (°C)", value=25.0)
+    h_val = ch.number_input("Humedad (%)", value=60.0)
+    dt_result = calculate_delta_t(t_val, h_val)
+    st.metric("Delta T", f"{dt_result} °C")
     
     
 
-    if 2 <= dt <= 8: st.success("✅ ÓPTIMO")
-    elif dt < 2: st.warning("⚠️ RIESGO DERIVA")
+    if 2 <= dt_result <= 8: st.success("✅ CONDICIÓN ÓPTIMA")
+    elif dt_result < 2: st.warning("⚠️ RIESGO DE DERIVA")
     else: st.error("❌ EVAPORACIÓN ALTA")
 
 # --- TAB 3: VADEMÉCUM ---
 with tabs[2]:
-    st.subheader("Buscador de la Base de Datos")
-    b = st.text_input("Buscar principio activo...")
-    res = vademecum_df[vademecum_df['PRINCIPIO_ACTIVO'].str.contains(b, case=False, na=False)]
+    st.subheader("Consulta de Productos")
+    busc = st.text_input("Buscar principio activo...")
+    res = vademecum_df[vademecum_df['PRINCIPIO_ACTIVO'].str.contains(busc, case=False, na=False)]
     for _, item in res.iterrows():
         st.markdown(f"""
         <div style="border:2px solid #002A20; margin-bottom:10px; background:#fff;">
             <div style="background:#002A20; color:#fff; padding:10px; font-weight:bold;">{item['PRINCIPIO_ACTIVO']}</div>
             <div style="padding:10px; color:#000;">
-                <b>Dosis:</b> {item['DOSIS_MARBETE_MIN']}-{item['DOSIS_MARBETE_MAX']} {item['UNIDAD_DOSIS']}<br>
+                <b>Dosis Marbete:</b> {item['DOSIS_MARBETE_MIN']}-{item['DOSIS_MARBETE_MAX']} {item['UNIDAD_DOSIS']}<br>
                 <b>Alerta:</b> {item['ALERTA_COMPATIBILIDAD']}<br>
-                <b>Orden:</b> {item['ORDEN_MEZCLA']}
+                <b>Orden Mezcla:</b> {item['ORDEN_MEZCLA']}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -168,11 +174,11 @@ with tabs[2]:
 # --- TAB 4: SOBRE NOSOTROS ---
 with tabs[3]:
     st.header("Sobre AGRODRONE DOSIS")
-    st.write("Herramienta profesional para el cálculo de mezclas en mixers de apoyo para drones agrícolas.")
-    st.subheader("☕ Apoya el Desarrollo")
+    st.write("Herramienta diseñada para optimizar la logística de carga y asegurar la eficacia biológica en aplicaciones con drones.")
+    st.subheader("☕ Apoya el proyecto")
     st.markdown("""
         <a href="https://www.buymeacoffee.com/gabrielcarc" target="_blank">
-            <button style="background-color: #FF813F; color: white; padding: 15px 30px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+            <button style="background-color: #FF813F; color: white; padding: 15px 30px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 18px;">
                 ☕ Invítame un café
             </button>
         </a>
