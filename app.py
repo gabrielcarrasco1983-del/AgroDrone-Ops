@@ -7,26 +7,26 @@ from urllib.parse import quote
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="AGRODRONE DOSIS", layout="wide")
 
-# --- CSS DE ALTO CONTRASTE Y ESTILO ---
+# --- CSS ALTO CONTRASTE (PARA SOL DIRECTO) ---
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF !important; color: #000000 !important; }
     
-    /* Texto negro y negrita para máxima visibilidad al sol */
+    /* Forzar texto negro en etiquetas y entradas */
     label p, .stMarkdown p, .stTextInput label p, .stNumberInput label p, .stSelectbox label p {
         color: #000000 !important;
         font-weight: 800 !important;
         font-size: 1.1rem !important;
     }
 
-    /* Estilo de Pestañas */
+    /* Tabs / Pestañas */
     .stTabs [data-baseweb="tab"] p {
         color: #000000 !important;
         font-weight: bold !important;
     }
     .stTabs [aria-selected="true"] { border-bottom-color: #002A20 !important; }
 
-    /* Contenedores de resultados */
+    /* Cajas de resultados */
     .resumen-caja {
         background-color: #f1f3f5;
         padding: 20px;
@@ -41,17 +41,27 @@ st.markdown("""
         border-radius: 10px;
         border-top: 5px solid #0056b3;
         color: #000000 !important;
-        margin-top: 10px;
+    }
+    .link-clima {
+        display: block;
+        background-color: #002A20;
+        color: white !important;
+        padding: 15px;
+        margin: 10px 0;
+        text-align: center;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: bold;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- VADEMÉCUM DATA (Base de consulta) ---
-csv_data = """PRINCIPIO_ACTIVO;DOSIS_MARBETE_MIN;DOSIS_MARBETE_MAX;UNIDAD_DOSIS;FAMILIA_QUIMICA;TIPO_PREPARADO;ALERTA_COMPATIBILIDAD;ORDEN_MEZCLA
-Glyphosate;0.25;1.5;L/ha;Glicina;Herbicida;Evitar pH alcalino;Medio
-2,4-D;0.5;1.5;L/ha;Fenoxiacético;Herbicida;Deriva/Volatilidad;Medio
-Atrazine;0.5;3;kg/ha;Triazina;Herbicida;Persistente;Temprano
-Dicamba;0.1;0.5;L/ha;Benzoico;Herbicida;Volatilidad;Medio"""
+# --- VADEMÉCUM DATA (PARA CONSULTA SOLAMENTE) ---
+csv_data = """PRINCIPIO_ACTIVO;DOSIS_MARBETE_MIN;DOSIS_MARBETE_MAX;UNIDAD_DOSIS;ALERTA_COMPATIBILIDAD;ORDEN_MEZCLA
+Glyphosate;0.25;1.5;L/ha;Evitar pH alcalino;Medio
+2,4-D;0.5;1.5;L/ha;Deriva/Volatilidad;Medio
+Atrazine;0.5;3;kg/ha;Persistente;Temprano
+Dicamba;0.1;0.5;L/ha;Volatilidad;Medio"""
 vademecum_df = pd.read_csv(io.StringIO(csv_data), sep=";")
 
 # --- FUNCIÓN DELTA T ---
@@ -63,114 +73,110 @@ def calculate_delta_t(temp, hum):
 
 st.title("AGRODRONE DOSIS")
 
-tabs = st.tabs(["🧮 Calculadora de Dosis", "🌡️ Delta T", "📖 Vademécum", "👥 Sobre Nosotros"])
+tabs = st.tabs(["🧮 Calculadora", "🌡️ Delta T", "🌦️ Clima", "📖 Vademécum", "👥 Sobre Nosotros"])
 
-# --- TAB 1: CALCULADORA (PRODUCTO LIBRE Y TOTALES) ---
+# --- TAB 1: CALCULADORA (100% MANUAL) ---
 with tabs[0]:
-    st.subheader("Configuración del Lote y Mixer")
+    st.subheader("1. Datos del Mixer")
     c1, c2, c3 = st.columns(3)
     with c1:
-        hectareas_lote = st.number_input("Hectáreas del Lote", value=10.0, step=1.0)
+        has_lote = st.number_input("Hectáreas Lote", value=10.0, step=1.0)
     with c2:
-        mixer_opt = st.selectbox("Capacidad Mixer (L)", ["100", "200", "300", "500", "Personalizado"])
-        cap_mixer = st.number_input("Litros Reales", value=330) if mixer_opt == "Personalizado" else int(mixer_opt)
+        m_opt = st.selectbox("Mixer (L)", ["100", "200", "300", "500", "Manual"])
+        c_mixer = st.number_input("Litros Reales", value=330) if m_opt == "Manual" else int(m_opt)
     with c3:
-        tasa_aplicacion = st.number_input("Caudal Dron (L/Ha)", value=10.0, step=1.0)
+        tasa = st.number_input("Caudal (L/Ha)", value=10.0, step=1.0)
 
     st.divider()
-    st.subheader("Productos (Escribe el nombre directamente)")
+    st.subheader("2. Productos (Ingreso Manual)")
     
-    if 'filas_prod' not in st.session_state:
-        st.session_state.filas_prod = [{"nombre": "", "dosis": 0.0, "unidad": "L"}]
+    if 'filas' not in st.session_state:
+        st.session_state.filas = [{"p": "", "d": 0.0, "u": "L"}]
 
-    # Renderizar filas de entrada 100% LIBRES
-    for i, fila in enumerate(st.session_state.filas_prod):
-        col_n, col_d, col_u = st.columns([0.5, 0.25, 0.25])
-        st.session_state.filas_prod[i]["nombre"] = col_n.text_input(f"Producto {i+1}", value=fila["nombre"], key=f"n_{i}", placeholder="Ej: Glifosato")
-        st.session_state.filas_prod[i]["dosis"] = col_d.number_input(f"Dosis/Ha", value=fila["dosis"], key=f"d_{i}", format="%.2f")
-        st.session_state.filas_prod[i]["unidad"] = col_u.selectbox("Unidad", ["L", "Kg"], key=f"u_{i}")
+    for i, fila in enumerate(st.session_state.filas):
+        col1, col2, col3 = st.columns([0.5, 0.25, 0.25])
+        # AQUÍ ESTÁ EL CAMBIO: text_input vacío, no lee del vademecum
+        st.session_state.filas[i]["p"] = col1.text_input(f"Producto {i+1}", value=fila["p"], key=f"prod_{i}", placeholder="Escriba el nombre")
+        st.session_state.filas[i]["d"] = col2.number_input(f"Dosis/Ha", value=fila["d"], key=f"dose_{i}", format="%.2f")
+        st.session_state.filas[i]["u"] = col3.selectbox("Unidad", ["L", "Kg"], key=f"unit_{i}")
 
-    if st.button("➕ Añadir otro producto"):
-        st.session_state.filas_prod.append({"nombre": "", "dosis": 0.0, "unidad": "L"})
+    if st.button("➕ Agregar Producto"):
+        st.session_state.filas.append({"p": "", "d": 0.0, "u": "L"})
         st.rerun()
 
-    if hectareas_lote > 0 and tasa_aplicacion > 0:
-        has_por_mixer = cap_mixer / tasa_aplicacion
-        total_preparaciones = (hectareas_lote * tasa_aplicacion) / cap_mixer
+    if has_lote > 0 and tasa > 0:
+        has_vuelo = c_mixer / tasa
+        mixers_totales = (has_lote * tasa) / c_mixer
 
         st.markdown(f"""
         <div class="resumen-caja">
-            <h3>🧪 CARGA POR MIXER ({cap_mixer}L)</h3>
-            <p>📍 Cubre: <b>{has_por_mixer:.2f} Hectáreas</b></p>
+            <h3>🧪 MEZCLA POR MIXER ({c_mixer}L)</h3>
+            <p>📍 Superficie a cubrir: <b>{has_vuelo:.2f} Ha</b></p>
         """, unsafe_allow_html=True)
         
-        items_wa = []
-        totales_lote = []
-
-        for f in st.session_state.filas_prod:
-            if f["dosis"] > 0:
-                p_nombre = f["nombre"] if f["nombre"] != "" else f"Producto {st.session_state.filas_prod.index(f)+1}"
-                # Cálculo por carga de Mixer
-                calc_mixer = f["dosis"] * has_por_mixer
-                st.write(f"✅ **{p_nombre}:** {calc_mixer:.3f} {f['unidad']}")
-                items_wa.append(f"- {p_nombre}: {calc_mixer:.3f} {f['unidad']}")
-                
-                # Cálculo Total del Lote
-                calc_total = f["dosis"] * hectareas_lote
-                totales_lote.append(f"📦 **{p_nombre}:** {calc_total:.2f} {f['unidad']}")
+        txt_wa = []
+        resumen_final = []
+        for f in st.session_state.filas:
+            if f["d"] > 0:
+                p_nombre = f["p"] if f["p"] != "" else f"Prod. {st.session_state.filas.index(f)+1}"
+                # Por Mixer
+                cant_m = f["d"] * has_vuelo
+                st.write(f"✅ **{p_nombre}:** {cant_m:.3f} {f['u']}")
+                txt_wa.append(f"- {p_nombre}: {cant_m:.3f}{f['u']}")
+                # Por Lote
+                cant_l = f["d"] * has_lote
+                resumen_final.append(f"📦 **{p_nombre}:** {cant_l:.2f} {f['u']}")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # SECCIÓN DE TOTALES REQUERIDOS
         st.markdown(f"""
         <div class="total-lote-caja">
-            <h4>📊 TOTAL PRODUCTO PARA EL LOTE ({hectareas_lote} Ha)</h4>
-            <p>Cant. de Mixers: <b>{math.ceil(total_preparaciones)}</b></p>
+            <h4>📊 TOTAL PARA EL LOTE ({has_lote} Ha)</h4>
+            <p>Cargas de mixer: <b>{math.ceil(mixers_totales)}</b></p>
         """, unsafe_allow_html=True)
-        for t in totales_lote:
-            st.write(t)
+        for r in resumen_final:
+            st.write(r)
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Botón WhatsApp
-        msg = f"*AGRODRONE DOSIS*\nMixer: {cap_mixer}L\nCubre: {has_por_mixer:.2f}Ha\n---\n" + "\n".join(items_wa)
-        st.markdown(f'<a href="https://wa.me/?text={quote(msg)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">📲 ENVIAR ORDEN POR WHATSAPP</button></a>', unsafe_allow_html=True)
+        msg = f"*ORDEN AGRODRONE DOSIS*\nMixer: {c_mixer}L\nCubre: {has_vuelo:.2f}Ha\n---\n" + "\n".join(txt_wa)
+        st.markdown(f'<a href="https://wa.me/?text={quote(msg)}" target="_blank"><button style="width:100%; background-color:#25D366; color:white; padding:15px; border:none; border-radius:10px; font-weight:bold; cursor:pointer;">📲 ENVIAR POR WHATSAPP</button></a>', unsafe_allow_html=True)
 
 # --- TAB 2: DELTA T ---
 with tabs[1]:
-    st.subheader("Condiciones Ambientales")
-    ct, ch = st.columns(2)
-    temp_in = ct.number_input("Temperatura (°C)", value=25.0)
-    hum_in = ch.number_input("Humedad (%)", value=60.0)
-    dt_res = calculate_delta_t(temp_in, hum_in)
-    st.metric("Delta T", f"{dt_res} °C")
+    st.subheader("Cálculo de Delta T")
+    col_t, col_h = st.columns(2)
+    t = col_t.number_input("Temp (°C)", value=25.0)
+    h = col_h.number_input("Humedad (%)", value=60.0)
+    dt = calculate_delta_t(t, h)
+    st.metric("Delta T", f"{dt} °C")
     
     
-    if 2 <= dt_res <= 8: st.success("✅ CONDICIÓN ÓPTIMA")
-    elif dt_res < 2: st.warning("⚠️ RIESGO DE DERIVA")
-    else: st.error("❌ EVAPORACIÓN ALTA")
 
-# --- TAB 3: VADEMÉCUM ---
+    if 2 <= dt <= 8: st.success("✅ ÓPTIMO")
+    elif dt < 2: st.warning("⚠️ DERIVA")
+    else: st.error("❌ EVAPORACIÓN")
+
+# --- TAB 3: CLIMA (LINKS EXTERNOS) ---
 with tabs[2]:
-    st.subheader("Consulta Técnica")
-    search = st.text_input("Buscar principio activo...")
-    res = vademecum_df[vademecum_df['PRINCIPIO_ACTIVO'].str.contains(search, case=False, na=False)]
-    for _, item in res.iterrows():
-        st.markdown(f"""
-        <div style="border:2px solid #002A20; margin-bottom:10px; padding:10px;">
-            <b style="color:#002A20; font-size:1.2rem;">{item['PRINCIPIO_ACTIVO']}</b><br>
-            Dosis: {item['DOSIS_MARBETE_MIN']}-{item['DOSIS_MARBETE_MAX']} {item['UNIDAD_DOSIS']}<br>
-            Alerta: {item['ALERTA_COMPATIBILIDAD']} | Orden: {item['ORDEN_MEZCLA']}
-        </div>
-        """, unsafe_allow_html=True)
-
-# --- TAB 4: SOBRE NOSOTROS ---
-with tabs[3]:
-    st.header("Sobre AGRODRONE DOSIS")
-    st.write("Herramienta diseñada para simplificar el cálculo de mezclas en campo y asegurar la eficacia de la aplicación.")
+    st.subheader("Consultas de Clima Crítico")
+    st.write("Accede a las herramientas externas recomendadas:")
     
-    st.subheader("☕ Apoya el Desarrollo")
-    st.info("Si esta aplicación te es útil, puedes apoyar su mantenimiento.")
+    st.markdown('<a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank" class="link-clima">🛰️ Índice KP (NOAA) - Actividad Geomagnética</a>', unsafe_allow_html=True)
+    st.markdown('<a href="https://www.windy.com" target="_blank" class="link-clima">🌬️ Windy.com - Viento y Radar</a>', unsafe_allow_html=True)
+    st.info("El índice KP es vital para la estabilidad del GPS del drone. Valores mayores a 4 pueden causar pérdida de señal.")
 
+# --- TAB 4: VADEMÉCUM (SOLO CONSULTA) ---
+with tabs[3]:
+    st.subheader("Buscador de Principios Activos")
+    b = st.text_input("Buscar en la base...")
+    res = vademecum_df[vademecum_df['PRINCIPIO_ACTIVO'].str.contains(b, case=False, na=False)]
+    st.dataframe(res, use_container_width=True)
+
+# --- TAB 5: SOBRE NOSOTROS ---
+with tabs[4]:
+    st.header("AGRODRONE DOSIS")
+    st.write("Desarrollado para aplicadores que buscan precisión y seguridad en cada hectárea.")
+    st.subheader("☕ Apoya el Desarrollo")
     st.markdown("""
         <a href="https://www.buymeacoffee.com/gabrielcarc" target="_blank">
             <button style="background-color: #FF813F; color: white; padding: 15px 30px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
@@ -179,4 +185,4 @@ with tabs[3]:
         </a>
     """, unsafe_allow_html=True)
     st.divider()
-    st.caption("Desarrollado por Gabriel Carrasco - AgroDrone Solutions")
+    st.caption("Gabriel Carrasco - AgroDrone Solutions")
