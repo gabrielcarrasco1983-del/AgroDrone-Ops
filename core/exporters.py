@@ -4,9 +4,6 @@ import io
 
 
 def generar_mensaje_whatsapp(lote, cobertura, por_mixer, total_lote) -> str:
-    """
-    Genera el link de WhatsApp con el reporte completo
-    """
     lineas_mixer = [
         f"- {p['producto']}: {p['cantidad']} {p['unidad']}"
         for p in por_mixer
@@ -31,9 +28,6 @@ def generar_mensaje_whatsapp(lote, cobertura, por_mixer, total_lote) -> str:
 
 
 def generar_excel(nombre_lote: str, total_lote: list) -> bytes:
-    """
-    Genera archivo Excel en memoria
-    """
     data = []
 
     for p in total_lote:
@@ -47,8 +41,8 @@ def generar_excel(nombre_lote: str, total_lote: list) -> bytes:
     df = pd.DataFrame(data)
 
     output = io.BytesIO()
-with pd.ExcelWriter(output) as writer:
-    df.to_excel(writer, index=False, sheet_name="Reporte")
 
+    with pd.ExcelWriter(output) as writer:
+        df.to_excel(writer, index=False, sheet_name="Reporte")
 
     return output.getvalue()
