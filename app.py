@@ -1,6 +1,4 @@
 import streamlit as st
-import pandas as pd
-import io
 
 # =========================
 # IMPORTS DEL CORE
@@ -32,16 +30,27 @@ with open("style.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # =========================
-# TÍTULO
+# TEXTOS BASE (API / PRODUCTO)
 # =========================
-st.title("Drone SprayLogic")
-st.caption("Plataforma inteligente de pulverización agrícola con drones")
+PRODUCT_NAME = "Drone SprayLogic"
+PRODUCT_TAGLINE = "Plataforma inteligente de pulverización agrícola con drones"
+PRODUCT_DESCRIPTION = (
+    "Herramienta diseñada para asistir al aplicador en el cálculo preciso "
+    "de mezclas y dosis para pulverización con drones, priorizando eficiencia, "
+    "claridad operativa y toma de decisiones en campo."
+)
+
+# =========================
+# HEADER
+# =========================
+st.title(PRODUCT_NAME)
+st.caption(PRODUCT_TAGLINE)
 
 tabs = st.tabs([
     "🧮 Calculadora",
     "🌡️ Delta T",
     "🌦️ Clima",
-    "👥 Sobre"
+    "ℹ️ Sobre"
 ])
 
 # ======================================================
@@ -56,16 +65,19 @@ with tabs[0]:
     with c1:
         hectareas = st.number_input("Hectáreas Totales", value=10.0, step=1.0)
     with c2:
-        mixer_opt = st.selectbox("Capacidad Mixer (L)", ["100", "200", "300", "500", "Manual"])
+        mixer_opt = st.selectbox(
+            "Capacidad Mixer (L)",
+            ["100", "200", "300", "500", "Manual"]
+        )
         mixer_litros = (
             st.number_input("Litros Reales", value=330)
             if mixer_opt == "Manual"
             else int(mixer_opt)
         )
     with c3:
-        tasa = st.number_input("Caudal Dron (L/Ha)", value=10.0, step=1.0)
+        tasa = st.number_input("Caudal del Dron (L/Ha)", value=10.0, step=1.0)
 
-    # Objeto Lote
+    # Objeto de dominio
     lote = Lote(
         nombre=nombre_lote,
         hectareas=hectareas,
@@ -82,7 +94,7 @@ with tabs[0]:
     for i, fila in enumerate(st.session_state.filas):
         col1, col2, col3 = st.columns([0.5, 0.25, 0.25])
         fila["p"] = col1.text_input(
-            f"Producto {i+1}",
+            f"Producto {i + 1}",
             value=fila["p"],
             key=f"p_{i}"
         )
@@ -119,7 +131,12 @@ with tabs[0]:
     # CÁLCULOS
     # =========================
     if lote.hectareas > 0 and lote.tasa_l_ha > 0 and productos:
-        cobertura = calcular_cobertura(lote.mixer_litros, lote.tasa_l_ha)
+
+        cobertura = calcular_cobertura(
+            lote.mixer_litros,
+            lote.tasa_l_ha
+        )
+
         mixers_totales = calcular_mixers_totales(
             lote.hectareas,
             lote.tasa_l_ha,
@@ -137,25 +154,25 @@ with tabs[0]:
         )
 
         st.markdown(
-            f"<div class='resumen-caja'><h3>🧪 MEZCLA POR MIXER ({lote.mixer_litros} L)</h3>"
-            f"<p>Cubre: <b>{cobertura:.2f} Ha</b></p>",
+            f"<div class='resumen-caja'>"
+            f"<h3>🧪 Mezcla por mixer ({lote.mixer_litros} L)</h3>"
+            f"<p>Cobertura: <b>{cobertura:.2f} Ha</b></p>",
             unsafe_allow_html=True
         )
 
         for p in resultado["por_mixer"]:
-            st.write(f"✅ **{p['producto']}:** {p['cantidad']} {p['unidad']}")
-
-        st.markdown("</div><div class='total-lote-caja'>", unsafe_allow_html=True)
-        st.subheader(f"📊 REPORTE TOTAL: {lote.nombre}")
-        st.write(f"Preparaciones de Mixer: **{mixers_totales}**")
-
-        for p in resultado["total_lote"]:
-            st.write(f"- {p['producto']}: {p['cantidad']} {p['unidad']}")
+            st.write(f"• **{p['producto']}**: {p['cantidad']} {p['unidad']}")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
+        st.subheader(f"📊 Total para el lote: {lote.nombre}")
+        st.write(f"Preparaciones necesarias: **{mixers_totales} mixers**")
+
+        for p in resultado["total_lote"]:
+            st.write(f"• {p['producto']}: {p['cantidad']} {p['unidad']}")
+
         # =========================
-        # WHATSAPP
+        # EXPORTACIONES
         # =========================
         wa_link = generar_mensaje_whatsapp(
             lote=lote,
@@ -168,20 +185,17 @@ with tabs[0]:
             f'<a href="{wa_link}" target="_blank">'
             f'<button style="width:100%; background-color:#25D366; color:white; '
             f'padding:15px; border:none; border-radius:10px; font-weight:bold;">'
-            f'📲 ENVIAR ORDEN COMPLETA</button></a>',
+            f'📲 Enviar orden por WhatsApp</button></a>',
             unsafe_allow_html=True
         )
 
-        # =========================
-        # EXCEL
-        # =========================
         excel_bytes = generar_excel(
             nombre_lote=lote.nombre,
             total_lote=resultado["total_lote"]
         )
 
         st.download_button(
-            label="📥 DESCARGAR LOG (EXCEL)",
+            label="📥 Descargar reporte (Excel)",
             data=excel_bytes,
             file_name=f"Reporte_{lote.nombre}.xlsx",
             mime="application/vnd.ms-excel"
@@ -192,18 +206,20 @@ with tabs[0]:
 # ======================================================
 with tabs[1]:
     st.subheader("Análisis Ambiental")
-    t = st.number_input("Temperatura °C", value=25.0)
-    h = st.number_input("Humedad %", value=60.0)
+
+    t = st.number_input("Temperatura (°C)", value=25.0)
+    h = st.number_input("Humedad Relativa (%)", value=60.0)
 
     dt = calculate_delta_t(t, h)
+
     st.metric("Delta T", f"{dt} °C")
 
     if 2 <= dt <= 8:
-        st.success("✅ Condiciones óptimas")
+        st.success("Condiciones óptimas para aplicación")
     elif dt < 2:
-        st.warning("⚠️ Riesgo de deriva")
+        st.warning("Riesgo de deriva")
     else:
-        st.error("❌ Evaporación elevada")
+        st.error("Alta evaporación")
 
 # ======================================================
 # TAB 3 — CLIMA
@@ -213,7 +229,7 @@ with tabs[2]:
         '<a href="https://www.windy.com" target="_blank" '
         'style="display:block; background:#002A20; color:white; padding:15px; '
         'text-align:center; border-radius:10px; text-decoration:none;">'
-        '🌬️ CONSULTAR WINDY</a>',
+        '🌬️ Consultar Windy</a>',
         unsafe_allow_html=True
     )
 
@@ -221,8 +237,4 @@ with tabs[2]:
 # TAB 4 — SOBRE
 # ======================================================
 with tabs[3]:
-    st.write(
-        "Drone SprayLogic es una herramienta pensada para asistir al aplicador "
-        "en el armado preciso del caldo de pulverización con drones, "
-        "priorizando rapidez, claridad y uso en campo."
-    )
+    st.write(PRODUCT_DESCRIPTION)
