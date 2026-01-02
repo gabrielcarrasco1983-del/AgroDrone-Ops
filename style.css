@@ -63,3 +63,28 @@ a {
 a:hover {
     text-decoration: underline;
 }
+/* ====== ENFOQUE CAMPO ====== */
+div[data-testid="metric-container"] {
+    background-color: #FFFFFF;
+    border-radius: 14px;
+    padding: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+div[data-testid="metric-container"] label {
+    font-size: 0.85rem;
+    color: #4B5563;
+}
+
+div[data-testid="metric-container"] div {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #0B3D2E;
+}
+
+/* Botones grandes */
+button {
+    min-height: 56px;
+    font-size: 1rem;
+}
+
