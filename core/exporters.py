@@ -47,7 +47,8 @@ def generar_excel(nombre_lote: str, total_lote: list) -> bytes:
     df = pd.DataFrame(data)
 
     output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Reporte")
+with pd.ExcelWriter(output) as writer:
+    df.to_excel(writer, index=False, sheet_name="Reporte")
+
 
     return output.getvalue()
