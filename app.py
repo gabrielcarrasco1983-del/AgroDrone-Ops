@@ -13,7 +13,7 @@ from core.exporters import (
     generar_mensaje_whatsapp,
     generar_excel
 )
-from utils.delta_t import calculate_delta_t
+from core.utils.delta_t import calculate_delta_t
 
 # =========================
 # CONFIGURACIÓN DE PÁGINA
@@ -238,3 +238,4 @@ with tabs[2]:
 # ======================================================
 with tabs[3]:
     st.write(PRODUCT_DESCRIPTION)
+
