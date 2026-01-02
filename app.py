@@ -1,9 +1,6 @@
 import streamlit as st
 import pandas as pd
-import math
 import io
-from datetime import datetime
-from urllib.parse import quote
 
 # =========================
 # IMPORTS DEL CORE
@@ -14,6 +11,10 @@ from core.calculator import (
     calcular_dosis_productos
 )
 from core.models import Lote, Producto
+from core.exporters import (
+    generar_mensaje_whatsapp,
+    generar_excel
+)
 from utils.delta_t import calculate_delta_t
 
 # =========================
@@ -40,8 +41,7 @@ tabs = st.tabs([
     "🧮 Calculadora",
     "🌡️ Delta T",
     "🌦️ Clima",
-    "📖 Vademécum",
-    "👥 Sobre el Autor"
+    "👥 Sobre"
 ])
 
 # ======================================================
@@ -105,21 +105,20 @@ with tabs[0]:
     # =========================
     # ARMADO DE PRODUCTOS
     # =========================
-    productos = []
-    for f in st.session_state.filas:
-        if f["d"] > 0:
-            productos.append(
-                Producto(
-                    nombre=f["p"] if f["p"] else "Producto",
-                    dosis=f["d"],
-                    unidad=f["u"]
-                )
-            )
+    productos = [
+        Producto(
+            nombre=f["p"] if f["p"] else "Producto",
+            dosis=f["d"],
+            unidad=f["u"]
+        )
+        for f in st.session_state.filas
+        if f["d"] > 0
+    ]
 
     # =========================
     # CÁLCULOS
     # =========================
-    if lote.hectareas > 0 and lote.tasa_l_ha > 0:
+    if lote.hectareas > 0 and lote.tasa_l_ha > 0 and productos:
         cobertura = calcular_cobertura(lote.mixer_litros, lote.tasa_l_ha)
         mixers_totales = calcular_mixers_totales(
             lote.hectareas,
@@ -143,43 +142,30 @@ with tabs[0]:
             unsafe_allow_html=True
         )
 
-        wa_mixer = []
-        wa_total = []
-        excel_data = []
-
         for p in resultado["por_mixer"]:
             st.write(f"✅ **{p['producto']}:** {p['cantidad']} {p['unidad']}")
-            wa_mixer.append(f"- {p['producto']}: {p['cantidad']} {p['unidad']}")
 
         st.markdown("</div><div class='total-lote-caja'>", unsafe_allow_html=True)
         st.subheader(f"📊 REPORTE TOTAL: {lote.nombre}")
         st.write(f"Preparaciones de Mixer: **{mixers_totales}**")
 
-        for t in resultado["total_lote"]:
-            st.write(f"- {t['producto']}: {t['cantidad']} {t['unidad']}")
-            wa_total.append(f"- {t['producto']}: {t['cantidad']} {t['unidad']}")
-            excel_data.append({
-                "Lote": lote.nombre,
-                "Producto": t["producto"],
-                "Cantidad": t["cantidad"],
-                "Unidad": t["unidad"]
-            })
+        for p in resultado["total_lote"]:
+            st.write(f"- {p['producto']}: {p['cantidad']} {p['unidad']}")
 
         st.markdown("</div>", unsafe_allow_html=True)
 
         # =========================
         # WHATSAPP
         # =========================
-        msg = (
-            f"*DRONE SPRAYLOGIC*\n"
-            f"*Lote:* {lote.nombre}\n"
-            f"Mixer: {lote.mixer_litros}L | Cubre: {cobertura:.2f}Ha\n"
-            f"--- POR MIXER ---\n" + "\n".join(wa_mixer) +
-            f"\n--- TOTAL LOTE ({lote.hectareas}Ha) ---\n" + "\n".join(wa_total)
+        wa_link = generar_mensaje_whatsapp(
+            lote=lote,
+            cobertura=cobertura,
+            por_mixer=resultado["por_mixer"],
+            total_lote=resultado["total_lote"]
         )
 
         st.markdown(
-            f'<a href="https://wa.me/?text={quote(msg)}" target="_blank">'
+            f'<a href="{wa_link}" target="_blank">'
             f'<button style="width:100%; background-color:#25D366; color:white; '
             f'padding:15px; border:none; border-radius:10px; font-weight:bold;">'
             f'📲 ENVIAR ORDEN COMPLETA</button></a>',
@@ -189,14 +175,14 @@ with tabs[0]:
         # =========================
         # EXCEL
         # =========================
-        df_export = pd.DataFrame(excel_data)
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_export.to_excel(writer, index=False, sheet_name="Reporte")
+        excel_bytes = generar_excel(
+            nombre_lote=lote.nombre,
+            total_lote=resultado["total_lote"]
+        )
 
         st.download_button(
             label="📥 DESCARGAR LOG (EXCEL)",
-            data=output.getvalue(),
+            data=excel_bytes,
             file_name=f"Reporte_{lote.nombre}.xlsx",
             mime="application/vnd.ms-excel"
         )
@@ -232,5 +218,11 @@ with tabs[2]:
     )
 
 # ======================================================
-# TAB 4 y 5 — SIN CAMBIOS POR AHORA
+# TAB 4 — SOBRE
 # ======================================================
+with tabs[3]:
+    st.write(
+        "Drone SprayLogic es una herramienta pensada para asistir al aplicador "
+        "en el armado preciso del caldo de pulverización con drones, "
+        "priorizando rapidez, claridad y uso en campo."
+    )
