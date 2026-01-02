@@ -1,61 +1,65 @@
-/* FUENTE Y COLORES NUTRIEN */
-@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@300;400;700&display=swap');
-
-html, body, [class*="css"] {
-    font-family: 'Public Sans', sans-serif;
-    background-color: #FFFFFF;
+/* ====== BASE ====== */
+body {
+    background-color: #F5F7F6;
+    color: #1F2933;
+    font-family: Inter, system-ui, sans-serif;
 }
 
-/* CONTENEDOR TIPO FICHA TÉCNICA */
-.ficha-box {
-    border: 1px solid #002A20;
-    margin-top: 15px;
-    margin-bottom: 25px;
-    background-color: #ffffff;
+/* ====== HEADER ====== */
+h1, h2, h3 {
+    color: #0B3D2E;
+    font-weight: 600;
 }
 
-.ficha-titulo {
-    background-color: #002A20;
-    color: #ffffff !important;
-    padding: 12px;
-    font-weight: 700;
-    text-align: center;
-    text-transform: uppercase;
-    font-size: 1.1rem;
-    letter-spacing: 1px;
+.stCaption {
+    color: #4B5563;
+    font-size: 0.9rem;
 }
 
-.seccion-gris {
-    background-color: #F2F2F2;
-    padding: 8px 15px;
-    font-weight: 700;
-    color: #002A20;
-    text-transform: uppercase;
-    font-size: 0.85rem;
-    border-top: 1px solid #002A20;
-    border-bottom: 1px solid #d1d1d1;
+/* ====== TARJETAS ====== */
+.block-container {
+    padding-top: 2rem;
 }
 
-.contenido-blanco {
-    padding: 15px;
-    background-color: white;
-    font-size: 0.95rem;
-    line-height: 1.5;
-    color: #333333;
+section[data-testid="stSidebar"] {
+    background-color: #E8ECE9;
 }
 
-/* BOTONES */
-.stButton > button {
-    background-color: #88D600 !important;
-    color: #002A20 !important;
-    border-radius: 4px !important;
-    border: none !important;
-    font-weight: 700 !important;
-    height: 45px;
-    transition: 0.3s;
+/* ====== INPUTS ====== */
+input, select, textarea {
+    border-radius: 8px !important;
 }
 
-.stButton > button:hover {
-    background-color: #002A20 !important;
-    color: #ffffff !important;
+/* ====== BOTONES ====== */
+button {
+    border-radius: 10px !important;
+    font-weight: 600;
+}
+
+button[kind="primary"] {
+    background-color: #0B3D2E !important;
+    color: white !important;
+}
+
+/* ====== MENSAJES ====== */
+.stSuccess {
+    background-color: #E6F4EA;
+}
+
+.stWarning {
+    background-color: #FFF4E5;
+}
+
+.stError {
+    background-color: #FDECEA;
+}
+
+/* ====== LINKS ====== */
+a {
+    color: #0B3D2E;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
 }
