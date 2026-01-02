@@ -30,30 +30,10 @@ with open("style.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # =========================
-# TEXTOS BASE
-# =========================
-PRODUCT_NAME = "Drone SprayLogic"
-PRODUCT_TAGLINE = "Plataforma inteligente de pulverización agrícola con drones"
-
-ABOUT_TEXT = (
-    "Herramienta diseñada para asistir al aplicador en el cálculo preciso "
-    "de mezclas y dosis para pulverización con drones, priorizando eficiencia, "
-    "claridad operativa y toma de decisiones en campo."
-)
-
-CREATOR_TEXT = (
-    "Creado por **Gabriel Carrasco**\n\n"
-    "Proyecto orientado a aplicaciones agrícolas con drones, "
-    "con foco en precisión, simplicidad y uso real en campo."
-)
-
-CONTACT_TEXT = "Contacto: **contacto@dronespraylogic.com**"
-
-# =========================
 # HEADER
 # =========================
-st.title(PRODUCT_NAME)
-st.caption(PRODUCT_TAGLINE)
+st.title("Drone SprayLogic")
+st.caption("Calculadora de mezclas y dosis para pulverización con drones")
 
 tabs = st.tabs([
     "🧮 Calculadora",
@@ -63,25 +43,47 @@ tabs = st.tabs([
 ])
 
 # ======================================================
-# TAB 1 — CALCULADORA
+# TAB 1 — CALCULADORA (OPTIMIZADA CAMPO)
 # ======================================================
 with tabs[0]:
-    st.subheader("Configuración del Lote")
 
-    nombre_lote = st.text_input("Nombre del Lote", value="Lote Sin Nombre")
+    # ---------- BLOQUE LOTE ----------
+    st.subheader("📍 Datos del lote")
 
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        hectareas = st.number_input("Hectáreas Totales", value=10.0, step=1.0)
-    with c2:
-        mixer_opt = st.selectbox("Capacidad Mixer (L)", ["100", "200", "300", "500", "Manual"])
-        mixer_litros = (
-            st.number_input("Litros Reales", value=330)
-            if mixer_opt == "Manual"
-            else int(mixer_opt)
+    nombre_lote = st.text_input(
+        "Nombre del lote",
+        value="Lote"
+    )
+
+    hectareas = st.number_input(
+        "Hectáreas totales",
+        min_value=0.0,
+        value=10.0,
+        step=1.0
+    )
+
+    st.divider()
+
+    # ---------- BLOQUE DRON ----------
+    st.subheader("🚁 Configuración del dron")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        tasa = st.number_input(
+            "Caudal de aplicación (L/Ha)",
+            min_value=0.0,
+            value=10.0,
+            step=1.0
         )
-    with c3:
-        tasa = st.number_input("Caudal del Dron (L/Ha)", value=10.0, step=1.0)
+
+    with col2:
+        mixer_litros = st.number_input(
+            "Capacidad del mixer (L)",
+            min_value=1,
+            value=300,
+            step=10
+        )
 
     lote = Lote(
         nombre=nombre_lote,
@@ -91,18 +93,35 @@ with tabs[0]:
     )
 
     st.divider()
-    st.subheader("Productos")
+
+    # ---------- BLOQUE PRODUCTOS ----------
+    st.subheader("🧪 Productos")
 
     if "filas" not in st.session_state:
         st.session_state.filas = [{"p": "", "d": 0.0, "u": "L"}]
 
     for i, fila in enumerate(st.session_state.filas):
         col1, col2, col3 = st.columns([0.5, 0.25, 0.25])
-        fila["p"] = col1.text_input(f"Producto {i+1}", value=fila["p"], key=f"p_{i}")
-        fila["d"] = col2.number_input("Dosis/Ha", value=fila["d"], key=f"d_{i}", format="%.3f")
-        fila["u"] = col3.selectbox("Unidad", ["L", "Kg"], key=f"u_{i}")
+        fila["p"] = col1.text_input(
+            f"Producto {i+1}",
+            value=fila["p"],
+            key=f"p_{i}"
+        )
+        fila["d"] = col2.number_input(
+            "Dosis / Ha",
+            min_value=0.0,
+            value=fila["d"],
+            step=0.1,
+            key=f"d_{i}",
+            format="%.2f"
+        )
+        fila["u"] = col3.selectbox(
+            "Unidad",
+            ["L", "Kg"],
+            key=f"u_{i}"
+        )
 
-    if st.button("➕ Añadir Producto"):
+    if st.button("➕ Agregar producto"):
         st.session_state.filas.append({"p": "", "d": 0.0, "u": "L"})
         st.rerun()
 
@@ -116,10 +135,18 @@ with tabs[0]:
         if f["d"] > 0
     ]
 
+    # ---------- RESULTADOS ----------
     if lote.hectareas > 0 and lote.tasa_l_ha > 0 and productos:
-        cobertura = calcular_cobertura(lote.mixer_litros, lote.tasa_l_ha)
+
+        cobertura = calcular_cobertura(
+            lote.mixer_litros,
+            lote.tasa_l_ha
+        )
+
         mixers_totales = calcular_mixers_totales(
-            lote.hectareas, lote.tasa_l_ha, lote.mixer_litros
+            lote.hectareas,
+            lote.tasa_l_ha,
+            lote.mixer_litros
         )
 
         resultado = calcular_dosis_productos(
@@ -132,23 +159,29 @@ with tabs[0]:
             hectareas=lote.hectareas
         )
 
-        st.subheader("🧪 Mezcla por mixer")
-        st.write(f"Cobertura por mixer: **{cobertura:.2f} Ha**")
-
-        for p in resultado["por_mixer"]:
-            st.write(f"- {p['producto']}: {p['cantidad']} {p['unidad']}")
-
-        st.subheader("📊 Total para el lote")
-        st.write(f"Mixers necesarios: **{mixers_totales}**")
-
-        for p in resultado["total_lote"]:
-            st.write(f"- {p['producto']}: {p['cantidad']} {p['unidad']}")
-
         st.divider()
+        st.subheader("📊 Resultados")
+
+        # Métricas grandes (clave para campo)
+        m1, m2 = st.columns(2)
+        m1.metric("Hectáreas por mixer", f"{cobertura:.2f} Ha")
+        m2.metric("Mixers necesarios", mixers_totales)
+
+        # Mezcla por mixer
+        st.subheader("🧪 Mezcla por mixer")
+        for p in resultado["por_mixer"]:
+            st.write(f"• **{p['producto']}**: {p['cantidad']} {p['unidad']}")
+
+        # Total lote
+        st.subheader("📦 Total para el lote")
+        for p in resultado["total_lote"]:
+            st.write(f"• **{p['producto']}**: {p['cantidad']} {p['unidad']}")
+
+        # Orden de mezcla
         st.subheader("📋 Orden sugerido de mezcla")
         st.markdown(
             """
-            1. Agua (50–60% del volumen)  
+            1. Agua (50–60%)  
             2. Correctores de pH / dureza  
             3. Polvos mojables (WP, WG)  
             4. Suspensiones concentradas (SC)  
@@ -159,6 +192,9 @@ with tabs[0]:
             """
         )
 
+        # Acciones
+        st.divider()
+
         wa_link = generar_mensaje_whatsapp(
             lote=lote,
             cobertura=cobertura,
@@ -167,40 +203,55 @@ with tabs[0]:
         )
 
         st.markdown(
-            f'<a href="{wa_link}" target="_blank">'
-            f'<button style="width:100%; background-color:#25D366; color:white; '
-            f'padding:15px; border:none; border-radius:10px; font-weight:bold;">'
-            f'📲 Enviar orden por WhatsApp</button></a>',
+            f"""
+            <a href="{wa_link}" target="_blank">
+                <button style="
+                    width:100%;
+                    background-color:#25D366;
+                    color:white;
+                    padding:16px;
+                    border:none;
+                    border-radius:12px;
+                    font-size:1rem;
+                    font-weight:700;">
+                    📲 Enviar receta por WhatsApp
+                </button>
+            </a>
+            """,
             unsafe_allow_html=True
         )
 
-        excel_bytes = generar_excel(lote.nombre, resultado["total_lote"])
+        excel_bytes = generar_excel(
+            lote.nombre,
+            resultado["total_lote"]
+        )
+
         st.download_button(
-            "📥 Descargar reporte (Excel)",
+            "📥 Descargar reporte en Excel",
             excel_bytes,
-            f"Reporte_{lote.nombre}.xlsx"
+            file_name=f"Reporte_{lote.nombre}.xlsx"
         )
 
 # ======================================================
 # TAB 2 — DELTA T
 # ======================================================
 with tabs[1]:
-    st.subheader("Delta T")
+    st.subheader("🌡️ Delta T")
 
     st.write(
-        "El Delta T es un indicador ambiental que combina temperatura y humedad "
-        "relativa para estimar el riesgo de evaporación y deriva durante la aplicación. "
-        "Valores intermedios indican mejores condiciones para pulverizar."
+        "El Delta T combina temperatura y humedad relativa para estimar "
+        "el riesgo de evaporación y deriva durante la aplicación."
     )
 
     t = st.number_input("Temperatura (°C)", value=25.0)
-    h = st.number_input("Humedad Relativa (%)", value=60.0)
+    h = st.number_input("Humedad relativa (%)", value=60.0)
 
     dt = calculate_delta_t(t, h)
+
     st.metric("Delta T", f"{dt} °C")
 
     if 2 <= dt <= 8:
-        st.success("Condiciones óptimas para aplicación")
+        st.success("Condiciones óptimas de aplicación")
     elif dt < 2:
         st.warning("Riesgo de deriva")
     else:
@@ -212,25 +263,35 @@ with tabs[1]:
 with tabs[2]:
     st.markdown(
         '<a href="https://www.windy.com" target="_blank" '
-        'style="display:block; background:#002A20; color:white; padding:15px; '
-        'text-align:center; border-radius:10px; text-decoration:none;">'
+        'style="display:block; background:#0B3D2E; color:white; padding:16px; '
+        'text-align:center; border-radius:12px; text-decoration:none;">'
         '🌬️ Ver pronóstico en Windy</a>',
         unsafe_allow_html=True
     )
 
     st.markdown(
         '<a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank" '
-        'style="display:block; background:#003366; color:white; padding:15px; '
-        'text-align:center; border-radius:10px; text-decoration:none; margin-top:10px;">'
+        'style="display:block; background:#003366; color:white; padding:16px; '
+        'text-align:center; border-radius:12px; text-decoration:none; margin-top:10px;">'
         '🧭 Ver índice KP (NOAA)</a>',
         unsafe_allow_html=True
     )
 
 # ======================================================
-# TAB 4 — SOBRE
+# TAB 4 — SOBRE MI
 # ======================================================
 with tabs[3]:
-    st.write(ABOUT_TEXT)
+    st.write(
+        "Herramienta diseñada para asistir al aplicador en el cálculo preciso "
+        "de mezclas y dosis para pulverización con drones, priorizando eficiencia, "
+        "claridad operativa y toma de decisiones en campo."
+    )
+
     st.divider()
-    st.write(CREATOR_TEXT)
-    st.write(CONTACT_TEXT)
+
+    st.write(
+        "**Creado por Gabriel Carrasco**  \n"
+        "Proyecto orientado a aplicaciones agrícolas con drones."
+    )
+
+    st.write("Contacto: **contacto@dronespraylogic.com**")
