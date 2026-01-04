@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import urllib.parse
 
 # =========================
 # IMPORTS DEL CORE
@@ -61,7 +62,7 @@ tabs = st.tabs([
 ])
 
 # ======================================================
-# TAB 0 — APLICACIÓN (CORE ORIGINAL)
+# TAB 0 — APLICACIÓN (CORE)
 # ======================================================
 with tabs[0]:
 
@@ -226,7 +227,7 @@ with tabs[0]:
         )
 
 # ======================================================
-# TAB 1 — FERTILIZACIÓN
+# TAB 1 — FERTILIZACIÓN (AGREGADO BOTÓN WHATSAPP)
 # ======================================================
 with tabs[1]:
     st.subheader("🌱 Fertilización con drones")
@@ -258,7 +259,7 @@ with tabs[1]:
         st.subheader("📊 Resultados")
         st.write(f"**Total necesario:** {total_f:.1f} kg")
 
-        mensaje = f"""🛰️ *Fertilización con dron – SprayLogic*
+        mensaje = f"""🛰️ Fertilización con dron – SprayLogic
 
 Lote: {lote_f}
 Superficie: {superficie_f} ha
@@ -270,8 +271,28 @@ Total necesario: {total_f:.1f} kg
 """
         st.text_area("📲 Mensaje para WhatsApp", mensaje, height=220)
 
+        wa_fert = "https://wa.me/?text=" + urllib.parse.quote(mensaje)
+
+        st.markdown(
+            f"""
+            <a href="{wa_fert}" target="_blank">
+                <button style="
+                    width:100%;
+                    background-color:#25D366;
+                    color:white;
+                    padding:14px;
+                    border:none;
+                    border-radius:12px;
+                    font-weight:700;">
+                    📲 Enviar por WhatsApp
+                </button>
+            </a>
+            """,
+            unsafe_allow_html=True
+        )
+
 # ======================================================
-# TAB 2 — SIEMBRA
+# TAB 2 — SIEMBRA (AGREGADO BOTÓN WHATSAPP)
 # ======================================================
 with tabs[2]:
     st.subheader("🌾 Siembra con drones")
@@ -299,6 +320,8 @@ with tabs[2]:
 
     st.divider()
 
+    mensaje_siembra = ""
+
     if tipo_siembra == "Semilla simple":
         especie = st.text_input("Especie", key="siem_esp_simple")
         dosis = st.number_input(
@@ -310,8 +333,20 @@ with tabs[2]:
 
         if superficie_s > 0 and dosis > 0:
             total = superficie_s * dosis
+
             st.subheader("📊 Resultado")
             st.write(f"**Total necesario:** {total:.1f} kg")
+
+            mensaje_siembra = f"""🛰️ Siembra con dron – SprayLogic
+
+Lote: {lote_s}
+Superficie: {superficie_s} ha
+
+Especie: {especie}
+Dosis: {dosis} kg/ha
+
+Total necesario: {total:.1f} kg
+"""
 
     else:
         especies_menu = [
@@ -325,11 +360,7 @@ with tabs[2]:
             col_a, col_b = st.columns([3, 2])
 
             with col_a:
-                esp = st.selectbox(
-                    "Especie",
-                    especies_menu,
-                    key="siem_mix_esp"
-                )
+                esp = st.selectbox("Especie", especies_menu, key="siem_mix_esp")
                 if esp == "Otra":
                     esp = st.text_input("Nombre de la especie", key="siem_mix_otra")
 
@@ -353,23 +384,42 @@ with tabs[2]:
             st.divider()
             st.subheader("📊 Resultados")
 
-            for e in st.session_state.siembra_especies:
-                st.write(f"- {e['especie']}: {e['kg_ha'] * superficie_s:.1f} kg")
-
-            st.write(f"**Total mezcla:** {total_kg_ha * superficie_s:.1f} kg")
-
-            mensaje = f"""🛰️ *Siembra con dron – SprayLogic*
+            mensaje_siembra = f"""🛰️ Siembra con dron – SprayLogic
 
 Lote: {lote_s}
 Superficie: {superficie_s} ha
-
 """
+
             for e in st.session_state.siembra_especies:
-                mensaje += f"- {e['especie']}: {e['kg_ha']} kg/ha\n"
+                st.write(f"- {e['especie']}: {e['kg_ha'] * superficie_s:.1f} kg")
+                mensaje_siembra += f"\n- {e['especie']}: {e['kg_ha']} kg/ha"
 
-            mensaje += f"\nTotal mezcla necesaria: {total_kg_ha * superficie_s:.1f} kg"
+            mensaje_siembra += f"\n\nTotal mezcla necesaria: {total_kg_ha * superficie_s:.1f} kg"
 
-            st.text_area("📲 Mensaje para WhatsApp", mensaje, height=260)
+            st.write(f"**Total mezcla:** {total_kg_ha * superficie_s:.1f} kg")
+
+    if mensaje_siembra:
+        st.text_area("📲 Mensaje para WhatsApp", mensaje_siembra, height=260)
+
+        wa_siembra = "https://wa.me/?text=" + urllib.parse.quote(mensaje_siembra)
+
+        st.markdown(
+            f"""
+            <a href="{wa_siembra}" target="_blank">
+                <button style="
+                    width:100%;
+                    background-color:#25D366;
+                    color:white;
+                    padding:14px;
+                    border:none;
+                    border-radius:12px;
+                    font-weight:700;">
+                    📲 Enviar por WhatsApp
+                </button>
+            </a>
+            """,
+            unsafe_allow_html=True
+        )
 
 # ======================================================
 # TAB 3 — DELTA T
@@ -391,7 +441,7 @@ with tabs[3]:
         st.error("Alta evaporación")
 
 # ======================================================
-# TAB 4 — CLIMA
+# TAB 4 — CLIMA (AGREGADO NOAA KP)
 # ======================================================
 with tabs[4]:
     st.markdown(
@@ -399,6 +449,14 @@ with tabs[4]:
         'style="display:block; background:#0B3D2E; color:white; padding:16px; '
         'text-align:center; border-radius:12px; text-decoration:none;">'
         '🌬️ Ver pronóstico en Windy</a>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank" '
+        'style="display:block; background:#003366; color:white; padding:16px; '
+        'text-align:center; border-radius:12px; text-decoration:none; margin-top:10px;">'
+        '🧭 Ver índice KP – NOAA</a>',
         unsafe_allow_html=True
     )
 
