@@ -1,9 +1,9 @@
 import streamlit as st
 import urllib.parse
 
-# =========================
+# =====================================================
 # CONFIGURACIÓN GENERAL
-# =========================
+# =====================================================
 st.set_page_config(
     page_title="Drone SprayLogic",
     layout="wide"
@@ -14,15 +14,21 @@ st.caption(
     "Plataforma operativa para aplicación, fertilización y siembra con drones agrícolas"
 )
 
-# =========================
+# =====================================================
 # SESSION STATE
-# =========================
+# =====================================================
+if "aplicacion_productos" not in st.session_state:
+    st.session_state.aplicacion_productos = []
+
+if "fertilizacion_productos" not in st.session_state:
+    st.session_state.fertilizacion_productos = []
+
 if "siembra_especies" not in st.session_state:
     st.session_state.siembra_especies = []
 
-# =========================
+# =====================================================
 # TABS
-# =========================
+# =====================================================
 tabs = st.tabs([
     "🧮 Aplicación",
     "🌱 Fertilización",
@@ -32,210 +38,222 @@ tabs = st.tabs([
     "ℹ️ Sobre mi"
 ])
 
-# ======================================================
-# TAB APLICACIÓN (placeholder funcional)
-# ======================================================
+# =====================================================
+# TAB APLICACIÓN
+# =====================================================
 with tabs[0]:
-    st.subheader("🧮 Aplicación")
-    st.info(
-        "Módulo de cálculo de dosis para pulverización con drones. "
-        "Será ampliado con edición por producto, memoria y exportación."
-    )
-
-# ======================================================
-# TAB FERTILIZACIÓN (placeholder funcional)
-# ======================================================
-with tabs[1]:
-    st.subheader("🌱 Fertilización")
-    st.info(
-        "Módulo de fertilización con drones. "
-        "Permitirá registrar dosis, mezclas y totales por lote."
-    )
-
-# ======================================================
-# TAB SIEMBRA (COMPLETO)
-# ======================================================
-with tabs[2]:
-    st.subheader("🌾 Siembra con drones")
+    st.subheader("🧮 Aplicación con drones")
 
     col1, col2 = st.columns(2)
-
     with col1:
-        lote = st.text_input("Lote")
-        superficie = st.number_input(
-            "Superficie (ha)",
-            min_value=0.0,
-            step=0.1
-        )
-
+        lote = st.text_input("Lote", key="lote_app")
     with col2:
-        tipo_siembra = st.radio(
-            "Tipo de siembra",
-            ["Semilla simple", "Mezcla de semillas"]
-        )
+        superficie = st.number_input("Superficie (ha)", min_value=0.0, step=0.1, key="sup_app")
 
     st.divider()
+    st.markdown("### 💧 Productos")
 
-    # -------------------------
-    # SIEMBRA SIMPLE
-    # -------------------------
-    if tipo_siembra == "Semilla simple":
-        especie = st.text_input("Especie")
-        dosis = st.number_input(
-            "Dosis (kg/ha)",
-            min_value=0.0,
-            step=0.1
-        )
+    with st.form("add_producto_app"):
+        c1, c2 = st.columns([4, 2])
+        with c1:
+            producto = st.text_input("Producto")
+        with c2:
+            dosis = st.number_input("Dosis (L o kg/ha)", min_value=0.0, step=0.1)
 
-        if superficie > 0 and dosis > 0:
-            total = superficie * dosis
-
-            mensaje = f"""🛰️ *Siembra con dron – SprayLogic*
-
-Lote: {lote}
-Superficie: {superficie} ha
-
-Especie: {especie}
-Dosis: {dosis} kg/ha
-
-Total necesario: {total:.1f} kg
-"""
-
-            st.markdown("### 📊 Resultado")
-            st.write(f"**Total necesario:** {total:.1f} kg")
-
-            mensaje_encoded = urllib.parse.quote(mensaje)
-            st.markdown(
-                f"[📲 Compartir por WhatsApp](https://wa.me/?text={mensaje_encoded})",
-                unsafe_allow_html=True
+        if st.form_submit_button("➕ Agregar producto") and producto and dosis > 0:
+            st.session_state.aplicacion_productos.append(
+                {"producto": producto, "dosis": dosis}
             )
 
-    # -------------------------
-    # SIEMBRA EN MEZCLA
-    # -------------------------
-    else:
-        st.markdown("### 🌱 Especies de la mezcla")
+    if st.session_state.aplicacion_productos:
+        total_ha = 0
+        st.markdown("### 📋 Productos cargados")
 
-        especies_menu = [
-            "Avena", "Raigrás anual", "Raigrás perenne", "Cebadilla",
-            "Festuca", "Agropiro", "Trébol blanco", "Trébol rojo",
-            "Lotus", "Vicia", "Alfalfa", "Centeno", "Triticale",
-            "Sorgo forrajero", "Moha", "Otra"
-        ]
+        for i, p in enumerate(st.session_state.aplicacion_productos):
+            c1, c2, c3 = st.columns([4, 2, 1])
+            c1.write(p["producto"])
+            c2.write(f'{p["dosis"]} /ha')
+            if c3.button("❌", key=f"del_app_{i}"):
+                st.session_state.aplicacion_productos.pop(i)
+                st.rerun()
 
-        with st.form("agregar_especie"):
-            c1, c2 = st.columns([3, 2])
-
-            with c1:
-                especie = st.selectbox("Especie", especies_menu)
-                if especie == "Otra":
-                    especie = st.text_input("Nombre de la especie")
-
-            with c2:
-                kg_ha = st.number_input(
-                    "Kg/ha",
-                    min_value=0.0,
-                    step=0.1
-                )
-
-            agregar = st.form_submit_button("➕ Agregar especie")
-
-            if agregar and especie and kg_ha > 0:
-                st.session_state.siembra_especies.append({
-                    "especie": especie,
-                    "kg_ha": kg_ha
-                })
-
-        # -------- listado editable ----------
-        if st.session_state.siembra_especies:
-            st.markdown("### 📋 Mezcla cargada")
-
-            total_kg_ha = 0.0
-            totales = {}
-
-            for i, item in enumerate(st.session_state.siembra_especies):
-                c1, c2, c3 = st.columns([4, 2, 1])
-
-                with c1:
-                    st.write(item["especie"])
-                with c2:
-                    st.write(f'{item["kg_ha"]} kg/ha')
-                with c3:
-                    if st.button("❌", key=f"del_{i}"):
-                        st.session_state.siembra_especies.pop(i)
-                        st.rerun()
-
-                total_kg_ha += item["kg_ha"]
-                totales[item["especie"]] = item["kg_ha"]
-
-            if superficie > 0:
-                st.divider()
-                st.markdown("### 📊 Resultados")
-
-                st.write(f"**Total mezcla:** {total_kg_ha:.1f} kg/ha")
-                st.write(
-                    f"**Total mezcla para el lote:** {total_kg_ha * superficie:.1f} kg"
-                )
-
-                st.markdown("**Totales por especie:**")
-                for esp, dosis in totales.items():
-                    st.write(f"- {esp}: {dosis * superficie:.1f} kg")
-
-                mensaje = f"""🛰️ *Siembra con dron – SprayLogic*
+        if superficie > 0:
+            mensaje = f"""🛰️ *Aplicación con dron – SprayLogic*
 
 Lote: {lote}
 Superficie: {superficie} ha
 
 *Dosis por hectárea*"""
-                for esp, dosis in totales.items():
-                    mensaje += f"\n- {esp}: {dosis} kg/ha"
+            for p in st.session_state.aplicacion_productos:
+                mensaje += f"\n- {p['producto']}: {p['dosis']}"
 
-                mensaje += f"""
+            mensaje += "\n\n*Totales para el lote*"
+            for p in st.session_state.aplicacion_productos:
+                mensaje += f"\n- {p['producto']}: {p['dosis'] * superficie}"
 
-Total mezcla: {total_kg_ha:.1f} kg/ha
+            st.text_area("📲 Mensaje WhatsApp", mensaje, height=240)
+            st.markdown(
+                f"[📲 Compartir por WhatsApp](https://wa.me/?text={urllib.parse.quote(mensaje)})",
+                unsafe_allow_html=True
+            )
+        else:
+            st.info("👉 Ingresá la superficie para ver totales y compartir")
 
-*Totales para el lote*"""
-                for esp, dosis in totales.items():
-                    mensaje += f"\n- {esp}: {dosis * superficie:.1f} kg"
+# =====================================================
+# TAB FERTILIZACIÓN
+# =====================================================
+with tabs[1]:
+    st.subheader("🌱 Fertilización con drones")
 
-                mensaje += f"\n\nTotal mezcla necesaria: {total_kg_ha * superficie:.1f} kg"
+    col1, col2 = st.columns(2)
+    with col1:
+        lote = st.text_input("Lote", key="lote_fert")
+    with col2:
+        superficie = st.number_input("Superficie (ha)", min_value=0.0, step=0.1, key="sup_fert")
 
-                st.text_area("📲 Mensaje para WhatsApp", mensaje, height=260)
+    st.divider()
+    st.markdown("### 🌱 Fertilizantes")
 
-                mensaje_encoded = urllib.parse.quote(mensaje)
-                st.markdown(
-                    f"[📲 Compartir por WhatsApp](https://wa.me/?text={mensaje_encoded})",
-                    unsafe_allow_html=True
-                )
+    with st.form("add_fert"):
+        c1, c2 = st.columns([4, 2])
+        with c1:
+            fertilizante = st.text_input("Fertilizante")
+        with c2:
+            dosis = st.number_input("Dosis (kg/ha)", min_value=0.0, step=0.1)
 
-# ======================================================
+        if st.form_submit_button("➕ Agregar fertilizante") and fertilizante and dosis > 0:
+            st.session_state.fertilizacion_productos.append(
+                {"fertilizante": fertilizante, "dosis": dosis}
+            )
+
+    if st.session_state.fertilizacion_productos:
+        st.markdown("### 📋 Fertilizantes cargados")
+
+        for i, f in enumerate(st.session_state.fertilizacion_productos):
+            c1, c2, c3 = st.columns([4, 2, 1])
+            c1.write(f["fertilizante"])
+            c2.write(f'{f["dosis"]} kg/ha')
+            if c3.button("❌", key=f"del_fert_{i}"):
+                st.session_state.fertilizacion_productos.pop(i)
+                st.rerun()
+
+        if superficie > 0:
+            mensaje = f"""🛰️ *Fertilización con dron – SprayLogic*
+
+Lote: {lote}
+Superficie: {superficie} ha
+
+*Dosis por hectárea*"""
+            for f in st.session_state.fertilizacion_productos:
+                mensaje += f"\n- {f['fertilizante']}: {f['dosis']} kg/ha"
+
+            mensaje += "\n\n*Totales para el lote*"
+            for f in st.session_state.fertilizacion_productos:
+                mensaje += f"\n- {f['fertilizante']}: {f['dosis'] * superficie} kg"
+
+            st.text_area("📲 Mensaje WhatsApp", mensaje, height=240)
+            st.markdown(
+                f"[📲 Compartir por WhatsApp](https://wa.me/?text={urllib.parse.quote(mensaje)})",
+                unsafe_allow_html=True
+            )
+        else:
+            st.info("👉 Ingresá la superficie para ver totales y compartir")
+
+# =====================================================
+# TAB SIEMBRA (CORREGIDO Y FINAL)
+# =====================================================
+with tabs[2]:
+    st.subheader("🌾 Siembra con drones")
+
+    col1, col2 = st.columns(2)
+    lote = col1.text_input("Lote", key="lote_siembra")
+    superficie = col2.number_input("Superficie (ha)", min_value=0.0, step=0.1, key="sup_siembra")
+
+    st.divider()
+    st.markdown("### 🌱 Especies")
+
+    especies_menu = [
+        "Avena", "Raigrás anual", "Raigrás perenne", "Cebadilla", "Festuca",
+        "Agropiro", "Trébol blanco", "Trébol rojo", "Lotus", "Vicia",
+        "Alfalfa", "Centeno", "Triticale", "Moha", "Otra"
+    ]
+
+    with st.form("add_especie"):
+        c1, c2 = st.columns([4, 2])
+        especie = c1.selectbox("Especie", especies_menu)
+        if especie == "Otra":
+            especie = c1.text_input("Nombre de la especie")
+        dosis = c2.number_input("Kg/ha", min_value=0.0, step=0.1)
+
+        if st.form_submit_button("➕ Agregar especie") and especie and dosis > 0:
+            st.session_state.siembra_especies.append(
+                {"especie": especie, "dosis": dosis}
+            )
+
+    if st.session_state.siembra_especies:
+        total_kg_ha = 0
+        st.markdown("### 📋 Mezcla")
+
+        for i, e in enumerate(st.session_state.siembra_especies):
+            c1, c2, c3 = st.columns([4, 2, 1])
+            c1.write(e["especie"])
+            c2.write(f'{e["dosis"]} kg/ha')
+            if c3.button("❌", key=f"del_siembra_{i}"):
+                st.session_state.siembra_especies.pop(i)
+                st.rerun()
+            total_kg_ha += e["dosis"]
+
+        mensaje = f"""🛰️ *Siembra con dron – SprayLogic*
+
+Lote: {lote}
+Superficie: {superficie} ha
+
+*Dosis por hectárea*"""
+        for e in st.session_state.siembra_especies:
+            mensaje += f"\n- {e['especie']}: {e['dosis']} kg/ha"
+
+        mensaje += f"\n\nTotal mezcla: {total_kg_ha} kg/ha"
+
+        if superficie > 0:
+            mensaje += "\n\n*Totales para el lote*"
+            for e in st.session_state.siembra_especies:
+                mensaje += f"\n- {e['especie']}: {e['dosis'] * superficie} kg"
+            mensaje += f"\n\nTotal mezcla necesaria: {total_kg_ha * superficie} kg"
+
+            st.text_area("📲 Mensaje WhatsApp", mensaje, height=260)
+            st.markdown(
+                f"[📲 Compartir por WhatsApp](https://wa.me/?text={urllib.parse.quote(mensaje)})",
+                unsafe_allow_html=True
+            )
+        else:
+            st.info("👉 Ingresá la superficie para calcular totales y compartir")
+
+# =====================================================
 # TAB DELTA T
-# ======================================================
+# =====================================================
 with tabs[3]:
     st.subheader("🌡️ Delta T")
     st.write(
-        "El Delta T combina temperatura y humedad relativa. "
-        "Valores altos indican mayor riesgo de evaporación y deriva. "
-        "Es una referencia clave para decidir el momento de aplicación."
+        "Indicador que combina temperatura y humedad relativa. "
+        "Valores altos implican mayor riesgo de evaporación y deriva."
     )
 
-# ======================================================
+# =====================================================
 # TAB CLIMA
-# ======================================================
+# =====================================================
 with tabs[4]:
     st.subheader("🌦️ Clima")
     st.markdown(
         "[🌍 Pronóstico KP – NOAA](https://www.swpc.noaa.gov/products/planetary-k-index)"
     )
 
-# ======================================================
+# =====================================================
 # TAB SOBRE
-# ======================================================
+# =====================================================
 with tabs[5]:
     st.subheader("ℹ️ Sobre mi")
     st.write(
-        "Herramienta diseñada para asistir al aplicador en el cálculo preciso "
-        "de mezclas y dosis para pulverización, fertilización y siembra con drones, "
-        "priorizando eficiencia, claridad operativa y toma de decisiones en campo."
+        "Herramienta diseñada para asistir al aplicador y al asesor técnico "
+        "en el cálculo y registro de dosis, mezclas y siembras con drones."
     )
     st.write("**Creador:** Gabriel Carrasco")
