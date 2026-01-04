@@ -1,4 +1,5 @@
 import streamlit as st
+import os
 
 # =========================
 # IMPORTS DEL CORE
@@ -30,12 +31,16 @@ with open("style.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # =========================
-# HEADER CON ICONO
+# HEADER CON ICONO SEGURO
 # =========================
 col_i1, col_i2 = st.columns([1, 6])
 
 with col_i1:
-    st.image("zumbido.png", width=80)
+    icon_path = "zumbido.png"
+    if os.path.exists(icon_path):
+        st.image(icon_path, width=80)
+    else:
+        st.write("🛰️")
 
 with col_i2:
     st.title("Drone SprayLogic")
@@ -56,16 +61,13 @@ tabs = st.tabs([
 ])
 
 # ======================================================
-# TAB 0 — APLICACIÓN (ORIGINAL, NO MODIFICADO)
+# TAB 0 — APLICACIÓN (CORE ORIGINAL)
 # ======================================================
 with tabs[0]:
 
     st.subheader("📍 Datos del lote")
 
-    nombre_lote = st.text_input(
-        "Nombre del lote",
-        value="Lote"
-    )
+    nombre_lote = st.text_input("Nombre del lote", value="Lote")
 
     hectareas = st.number_input(
         "Hectáreas totales",
@@ -89,11 +91,10 @@ with tabs[0]:
         )
 
     with col2:
-        mixer_litros = st.number_input(
+        mixer_litros = st.selectbox(
             "Capacidad del mixer (L)",
-            min_value=1,
-            value=300,
-            step=10
+            options=[100, 200, 300, 500],
+            index=2
         )
 
     lote = Lote(
@@ -104,7 +105,6 @@ with tabs[0]:
     )
 
     st.divider()
-
     st.subheader("🧪 Productos")
 
     if "filas" not in st.session_state:
@@ -243,11 +243,12 @@ with tabs[1]:
         )
 
     with col2:
-        fertilizante = st.text_input("Fertilizante")
+        fertilizante = st.text_input("Fertilizante", key="fert_prod")
         dosis_f = st.number_input(
             "Dosis (kg/ha)",
             min_value=0.0,
-            step=0.1
+            step=0.1,
+            key="fert_dosis"
         )
 
     if superficie_f > 0 and dosis_f > 0:
@@ -292,14 +293,20 @@ with tabs[2]:
     with col2:
         tipo_siembra = st.radio(
             "Tipo de siembra",
-            ["Semilla simple", "Mezcla de semillas"]
+            ["Semilla simple", "Mezcla de semillas"],
+            key="siem_tipo"
         )
 
     st.divider()
 
     if tipo_siembra == "Semilla simple":
-        especie = st.text_input("Especie")
-        dosis = st.number_input("Dosis (kg/ha)", min_value=0.0, step=0.1)
+        especie = st.text_input("Especie", key="siem_esp_simple")
+        dosis = st.number_input(
+            "Dosis (kg/ha)",
+            min_value=0.0,
+            step=0.1,
+            key="siem_dosis_simple"
+        )
 
         if superficie_s > 0 and dosis > 0:
             total = superficie_s * dosis
@@ -318,12 +325,21 @@ with tabs[2]:
             col_a, col_b = st.columns([3, 2])
 
             with col_a:
-                esp = st.selectbox("Especie", especies_menu)
+                esp = st.selectbox(
+                    "Especie",
+                    especies_menu,
+                    key="siem_mix_esp"
+                )
                 if esp == "Otra":
-                    esp = st.text_input("Nombre de la especie")
+                    esp = st.text_input("Nombre de la especie", key="siem_mix_otra")
 
             with col_b:
-                kg_ha = st.number_input("Kg/ha", min_value=0.0, step=0.1)
+                kg_ha = st.number_input(
+                    "Kg/ha",
+                    min_value=0.0,
+                    step=0.1,
+                    key="siem_mix_kg"
+                )
 
             if st.form_submit_button("➕ Agregar"):
                 if esp and kg_ha > 0:
@@ -365,7 +381,6 @@ with tabs[3]:
     h = st.number_input("Humedad relativa (%)", value=60.0)
 
     dt = calculate_delta_t(t, h)
-
     st.metric("Delta T", f"{dt} °C")
 
     if 2 <= dt <= 8:
