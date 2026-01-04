@@ -127,7 +127,8 @@ with tabs[2]:
                 with col_e3:
                     if st.button("❌", key=f"del_{i}"):
                         st.session_state.siembra_especies.pop(i)
-                        st.experimental_rerun()
+                        st.rerun()
+
 
                 total_kg_ha += item["kg_ha"]
                 total_por_especie[item["especie"]] = item["kg_ha"]
@@ -200,3 +201,4 @@ with tabs[5]:
         "claridad operativa y toma de decisiones en campo."
     )
     st.write("**Creador:** Gabriel Carrasco")
+
