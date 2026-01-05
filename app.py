@@ -192,8 +192,14 @@ with tabs[0]:
 
         fila["p"] = c1.text_input(f"Producto {i+1}", fila["p"], key=f"p_{i}")
         fila["d"] = c2.number_input(
-            "Dosis / Ha", 0.0, fila["d"], step=0.1, key=f"d_{i}", format="%.2f"
-        )
+    "Dosis / Ha",
+    min_value=0.0,
+    value=float(fila["d"]),
+    step=0.1,
+    key=f"d_{i}",
+    format="%.2f"
+)
+
         fila["u"] = c3.selectbox("Unidad", ["L", "Kg"], key=f"u_{i}")
 
     if st.button("➕ Agregar producto"):
@@ -262,3 +268,4 @@ with tabs[4]:
 with tabs[5]:
     st.subheader("ℹ️ Sobre")
     st.write("Herramienta profesional para drones agrícolas.")
+
