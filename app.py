@@ -29,6 +29,12 @@ class Lote:
     hectareas: float
     tasa_l_ha: float
     mixer_litros: int
+    
+# =========================
+# SESSION STATE GLOBAL
+# =========================
+if "dron_activo" not in st.session_state:
+    st.session_state.dron_activo = None
 
 # =========================
 # MEMORIA DE DRONES
@@ -181,6 +187,8 @@ with tabs[0]:
         drones[nombre_dron] = {"tasa": tasa, "mixer": mixer_litros}
         save_drones(drones)
         st.success("Configuración guardada")
+    if nombre_dron:
+    st.session_state.dron_activo = nombre_dron
 
     lote = Lote(nombre_lote, hectareas, tasa, mixer_litros)
 
@@ -268,4 +276,5 @@ with tabs[4]:
 with tabs[5]:
     st.subheader("ℹ️ Sobre")
     st.write("Herramienta profesional para drones agrícolas.")
+
 
