@@ -14,7 +14,20 @@ from core.exporters import (
     generar_excel
 )
 from core.utils.delta_t import calculate_delta_t
+from core.storage import load_drones, save_drones  # Importamos la nueva lógica
 
+# =========================
+# SESSION STATE GLOBAL
+# =========================
+if "dron_activo" not in st.session_state:
+    st.session_state.dron_activo = None
+
+if "filas" not in st.session_state:
+    st.session_state.filas = [{"p": "", "d": 0.0, "u": "L"}]
+
+if "filas_fert" not in st.session_state:
+    st.session_state.filas_fert = [{"p": "", "d": 0.0, "u": "Kg"}]
+    
 # =========================
 # CONFIGURACIÓN DE PÁGINA
 # =========================
@@ -30,16 +43,18 @@ with open("style.css") as f:
     st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # =========================
-# HEADER
+# HEADER Y TABS (Actualizado)
 # =========================
 st.title("Drone SprayLogic")
 st.caption("Calculadora de mezclas y dosis para pulverización con drones")
 
 tabs = st.tabs([
-    "🧮 Calculadora",
-    "🌡️ Delta T",
-    "🌦️ Clima",
-    "ℹ️ Sobre"
+    "🧮 Aplicación",    # tabs[0]
+    "🌱 Fertilización", # tabs[1] (Nueva)
+    "🌾 Siembra",       # tabs[2] (Nueva)
+    "🌡️ Delta T",       # tabs[3] (Antes era tabs[1])
+    "🌦️ Clima",         # tabs[4]
+    "ℹ️ Sobre"          # tabs[5]
 ])
 
 # ======================================================
@@ -65,34 +80,40 @@ with tabs[0]:
     st.divider()
 
     # ---------- BLOQUE DRON ----------
-    st.subheader("🚁 Configuración del dron")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        tasa = st.number_input(
-            "Caudal de aplicación (L/Ha)",
-            min_value=0.0,
-            value=10.0,
-            step=1.0
+with tabs[0]:
+    drones = load_drones()
+    
+    st.subheader("🛰️ Selección de Equipo")
+    col_d1, col_d2 = st.columns([2, 1])
+    
+    with col_d1:
+        dron_sel = st.selectbox(
+            "Seleccionar dron guardado", 
+            ["Nuevo dron"] + list(drones.keys())
+        )
+    with col_d2:
+        nombre_dron = st.text_input(
+            "Nombre del dron", 
+            value="" if dron_sel == "Nuevo dron" else dron_sel
         )
 
-    with col2:
-        mixer_litros = st.number_input(
-            "Capacidad del mixer (L)",
-            min_value=1,
-            value=300,
-            step=10
-        )
+    # Valores por defecto basados en la memoria
+    defaults = drones.get(nombre_dron, {"tasa": 10.0, "mixer": 300})
+    
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
+        tasa = st.number_input("Caudal (L/Ha)", min_value=0.1, value=float(defaults["tasa"]))
+    with col_c2:
+        mixer_litros = st.number_input("Capacidad Mixer (L)", min_value=1, value=int(defaults["mixer"]))
 
-    lote = Lote(
-        nombre=nombre_lote,
-        hectareas=hectareas,
-        tasa_l_ha=tasa,
-        mixer_litros=mixer_litros
-    )
-
-    st.divider()
+    if st.button("💾 Guardar y Activar Dron"):
+        if nombre_dron:
+            drones[nombre_dron] = {"tasa": tasa, "mixer": mixer_litros}
+            save_drones(drones)
+            st.session_state.dron_activo = nombre_dron
+            st.success(f"Configuración de '{nombre_dron}' guardada.")
+        else:
+            st.error("Por favor, asigna un nombre al dron.")
 
     # ---------- BLOQUE PRODUCTOS ----------
     st.subheader("🧪 Productos")
@@ -233,21 +254,92 @@ with tabs[0]:
         )
 
 # ======================================================
-# TAB 2 — DELTA T
+# TAB 1 — FERTILIZACIÓN (Lógica integrada)
 # ======================================================
 with tabs[1]:
+    st.subheader("🌱 Gestión de Fertilización")
+
+    # Verificación de Seguridad: Requiere un dron configurado en Tab 0
+    if not st.session_state.dron_activo:
+        st.warning("⚠️ Primero seleccioná y guardá un dron en la pestaña **Aplicación**.")
+        st.info("Esto es necesario para conocer el caudal (L/Ha) y la capacidad del equipo.")
+    else:
+        # Recuperamos la configuración del dron activo
+        drones = load_drones()
+        conf = drones.get(st.session_state.dron_activo)
+        
+        tasa_dron = conf["tasa"]
+        mixer_cap = conf["mixer"]
+
+        # Banner informativo del equipo actual
+        st.success(f"✅ Equipo: **{st.session_state.dron_activo}** | {tasa_dron} L/Ha | Mixer: {mixer_cap} L")
+
+        # --- Datos del Lote ---
+        col_l1, col_l2 = st.columns([2, 1])
+        with col_l1:
+            nombre_lote_fert = st.text_input("Nombre del lote (Fert)", value="Lote Fert", key="n_l_f")
+        with col_l2:
+            ha_fert = st.number_input("Hectáreas", min_value=0.1, value=10.0, step=1.0, key="h_f")
+
+        st.divider()
+
+        # --- Selección de Fertilizantes ---
+        st.subheader("🧪 Fertilizantes / Productos Sólidos")
+        
+        for i, fila in enumerate(st.session_state.filas_fert):
+            c1, c2, c3 = st.columns([0.5, 0.25, 0.25])
+            fila["p"] = c1.text_input(f"Producto {i+1}", fila["p"], key=f"f_p_{i}")
+            fila["d"] = c2.number_input("Dosis / Ha", min_value=0.0, value=float(fila["d"]), key=f"f_d_{i}")
+            fila["u"] = c3.selectbox("Unidad", ["Kg", "L"], index=0, key=f"f_u_{i}")
+
+        if st.button("➕ Agregar otro fertilizante"):
+            st.session_state.filas_fert.append({"p": "", "d": 0.0, "u": "Kg"})
+            st.rerun()
+
+        # --- Cálculos y Resultados ---
+        lote_obj = Lote(nombre_lote_fert, ha_fert, tasa_dron, mixer_cap)
+        prods_filtrados = [p for p in st.session_state.filas_fert if p["d"] > 0]
+
+        if ha_fert > 0 and prods_filtrados:
+            from core.calculator import calcular_cobertura, calcular_dosis_productos
+            
+            cobertura = calcular_cobertura(mixer_cap, tasa_dron)
+            res = calcular_dosis_productos(
+                [{"nombre": p["p"], "dosis": p["d"], "unidad": p["u"]} for p in prods_filtrados],
+                cobertura,
+                ha_fert
+            )
+
+            st.divider()
+            st.subheader("📊 Plan de Carga (Por Mixer)")
+            for p in res["por_mixer"]:
+                st.write(f"• **{p['producto']}**: {p['cantidad']} {p['unidad']}")
+
+            # Botón de WhatsApp específico para Fertilización
+            from core.exporters import generar_mensaje_whatsapp
+            wa_link = generar_mensaje_whatsapp(
+                lote=lote_obj,
+                cobertura=cobertura,
+                por_mixer=res["por_mixer"],
+                total_lote=res["total_lote"]
+            )
+            
+            st.markdown(
+                f'<a href="{wa_link}" target="_blank"><button style="width:100%; background:#25D366; color:white; border:none; padding:12px; border-radius:10px; cursor:pointer; font-weight:bold;">📲 Enviar Receta de Fertilización</button></a>',
+                unsafe_allow_html=True
+            )
+
+# ======================================================
+# TAB 3 — DELTA T (Movido del índice 1 al 3)
+# ======================================================
+with tabs[3]:
     st.subheader("🌡️ Delta T")
-
-    st.write(
-        "El Delta T combina temperatura y humedad relativa para estimar "
-        "el riesgo de evaporación y deriva durante la aplicación."
-    )
-
-    t = st.number_input("Temperatura (°C)", value=25.0)
-    h = st.number_input("Humedad relativa (%)", value=60.0)
-
+    # Mantén tu lógica original aquí:
+    t = st.number_input("Temperatura (°C)", value=25.0, key="dt_t")
+    h = st.number_input("Humedad relativa (%)", value=60.0, key="dt_h")
+    
+    from core.utils.delta_t import calculate_delta_t
     dt = calculate_delta_t(t, h)
-
     st.metric("Delta T", f"{dt} °C")
 
     if 2 <= dt <= 8:
@@ -258,9 +350,9 @@ with tabs[1]:
         st.error("Alta evaporación")
 
 # ======================================================
-# TAB 3 — CLIMA
+# TAB 4 — CLIMA
 # ======================================================
-with tabs[2]:
+with tabs[4]:
     st.markdown(
         '<a href="https://www.windy.com" target="_blank" '
         'style="display:block; background:#0B3D2E; color:white; padding:16px; '
@@ -278,9 +370,9 @@ with tabs[2]:
     )
 
 # ======================================================
-# TAB 4 — SOBRE MI
+# TAB 5 — SOBRE MI
 # ======================================================
-with tabs[3]:
+with tabs[5]:
     st.write(
         "Herramienta diseñada para asistir al aplicador en el cálculo preciso "
         "de mezclas y dosis para pulverización con drones, priorizando eficiencia, "
@@ -294,4 +386,5 @@ with tabs[3]:
         "Proyecto orientado a aplicaciones agrícolas con drones."
     )
 
-    st.write("Contacto: **contacto@dronespraylogic.com**")
+    st.write("Contacto: **gabriel.carrasco1983@gmail.com**")
+
