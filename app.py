@@ -1,324 +1,204 @@
-import streamlit as st
-import math
-from urllib.parse import quote
-from datetime import datetime
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-st.set_page_config(page_title="AgroDrone Mixer", layout="wide")
+<title>Planificador Aplicación Drone</title>
 
-# -------------------------------------------------
-# ESTILO AGRO
-# -------------------------------------------------
-
-st.markdown("""
 <style>
 
-.stApp{
-background:#f8faf5;
+body{
+font-family: Arial, sans-serif;
+background:#f7f9e8;
+margin:0;
+padding:0;
+color:#1f2d16;
 }
 
-h1,h2,h3{
-color:#2e5d2c;
+header{
+background:#6a9f3a;
+color:white;
+padding:15px;
+text-align:center;
+font-size:22px;
+font-weight:bold;
 }
 
-.resumen{
-background:#eef6ea;
-padding:18px;
-border-left:8px solid #4CAF50;
-border-radius:8px;
+.container{
+padding:15px;
+max-width:600px;
+margin:auto;
 }
 
-.total{
-background:#fff8d6;
-padding:18px;
-border-top:6px solid #d4b106;
-border-radius:8px;
+.card{
+background:white;
+padding:15px;
+margin-bottom:15px;
+border-radius:10px;
+box-shadow:0 2px 6px rgba(0,0,0,0.1);
 }
 
-.hist{
-background:#f3f3f3;
+.card h2{
+margin-top:0;
+color:#4f772d;
+}
+
+input{
+width:100%;
 padding:10px;
+margin-top:5px;
+margin-bottom:10px;
 border-radius:6px;
-margin-bottom:5px;
+border:1px solid #ccc;
+font-size:16px;
+}
+
+button{
+width:100%;
+padding:12px;
+border:none;
+background:#6a9f3a;
+color:white;
+font-size:18px;
+border-radius:8px;
+cursor:pointer;
+}
+
+button:hover{
+background:#588528;
+}
+
+.result{
+font-size:18px;
+margin:6px 0;
+}
+
+.big{
+font-size:24px;
+font-weight:bold;
+}
+
+.links a{
+display:block;
+margin:5px 0;
+color:#2d6a4f;
+font-weight:bold;
+text-decoration:none;
 }
 
 </style>
-""", unsafe_allow_html=True)
 
-# -------------------------------------------------
-# FUNCION DELTA T
-# -------------------------------------------------
+</head>
+<body>
 
-def calculate_delta_t(temp, hum):
+<header>
+Planificador Aplicación Drone
+</header>
 
-    tw = temp * math.atan(0.151977 * (hum + 8.313659)**0.5) + \
-         math.atan(temp + hum) - math.atan(hum - 1.676331) + \
-         0.00391838 * (hum**1.5) * math.atan(0.023101 * hum) - 4.686035
+<div class="container">
 
-    return round(temp - tw,2)
+<div class="card">
 
-# -------------------------------------------------
-# VARIABLES SESSION
-# -------------------------------------------------
+<h2>Datos del lote</h2>
 
-if "productos" not in st.session_state:
-    st.session_state.productos = [{"nombre":"", "dosis":0.0, "unidad":"L"}]
+<label>Hectáreas</label>
+<input id="hectareas" type="number">
 
-if "historial" not in st.session_state:
-    st.session_state.historial = []
+<label>Litros por hectárea</label>
+<input id="litros_ha" type="number">
 
-# -------------------------------------------------
-# TITULO
-# -------------------------------------------------
+<label>Dosis producto (cc/ha)</label>
+<input id="dosis" type="number">
 
-st.title("AGRODRONE MIXER")
+<label>Capacidad tanque mixer (L)</label>
+<input id="mixer" type="number">
 
-tabs = st.tabs([
-"Calculadora",
-"Delta-T",
-"Clima",
-"Historial",
-"Sobre"
-])
+<button onclick="calcular()">Calcular</button>
 
-# =================================================
-# CALCULADORA
-# =================================================
+</div>
 
-with tabs[0]:
+<div class="card">
 
-    st.subheader("Datos del lote")
+<h2>Resumen logístico</h2>
 
-    c1,c2,c3 = st.columns(3)
+<div class="result big" id="agua_total"></div>
+<div class="result" id="producto_total"></div>
+<div class="result" id="mezclas"></div>
+<div class="result" id="tanques"></div>
 
-    with c1:
-        nombre_lote = st.text_input("Nombre del lote","Lote sin nombre")
-        hectareas = st.number_input("Superficie (ha)",10.0)
+</div>
 
-    with c2:
-        volumen_aplicacion = st.number_input("Volumen aplicación (L/ha)",10.0)
-        capacidad_mixer = st.number_input("Capacidad mixer (L)",300)
+<div class="card">
 
-    with c3:
-        modo_campo = st.checkbox("Modo pantalla campo")
+<h2>Mezcla por tanque</h2>
 
-    if modo_campo:
-        st.markdown("<style>body{zoom:120%;}</style>", unsafe_allow_html=True)
+<div class="result" id="mezcla_tanque"></div>
 
-    st.divider()
+</div>
 
-# -------------------------------------------------
-# PRODUCTOS
-# -------------------------------------------------
+<div class="card">
 
-    st.subheader("Productos")
+<h2>Clima y condiciones</h2>
 
-    for i,prod in enumerate(st.session_state.productos):
+<div class="links">
 
-        col1,col2,col3 = st.columns([0.5,0.25,0.25])
+<a href="https://www.windy.com" target="_blank">
+Pronóstico Windy
+</a>
 
-        st.session_state.productos[i]["nombre"] = col1.text_input(
-            f"Producto {i+1}",
-            value=prod["nombre"],
-            key=f"prod{i}"
-        )
+<a href="https://www.meteoblue.com" target="_blank">
+Pronóstico Meteoblue
+</a>
 
-        st.session_state.productos[i]["dosis"] = col2.number_input(
-            "Dosis/ha",
-            value=prod["dosis"],
-            key=f"dosis{i}"
-        )
+<a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">
+Índice geomagnético KP (NOAA)
+</a>
 
-        st.session_state.productos[i]["unidad"] = col3.selectbox(
-            "Unidad",
-            ["L","Kg"],
-            key=f"unidad{i}"
-        )
+</div>
 
-    if st.button("Agregar producto"):
-        st.session_state.productos.append({"nombre":"","dosis":0.0,"unidad":"L"})
-        st.rerun()
+</div>
 
-# -------------------------------------------------
-# CALCULOS
-# -------------------------------------------------
+</div>
 
-    if hectareas > 0 and volumen_aplicacion > 0:
+<script>
 
-        litros_totales = hectareas * volumen_aplicacion
+function calcular(){
 
-        mixers = litros_totales / capacidad_mixer
+let hectareas = parseFloat(document.getElementById("hectareas").value);
+let litros_ha = parseFloat(document.getElementById("litros_ha").value);
+let dosis = parseFloat(document.getElementById("dosis").value);
+let mixer = parseFloat(document.getElementById("mixer").value);
 
-        hectareas_por_mixer = capacidad_mixer / volumen_aplicacion
+let agua_total = hectareas * litros_ha;
 
-        total_productos = 0
+let producto_total_cc = hectareas * dosis;
+let producto_total_l = producto_total_cc / 1000;
 
-        wa_mixer=[]
-        wa_total=[]
+let mezclas = agua_total / mixer;
 
-        st.markdown(
-        f"""
-        <div class="resumen">
-        <b>Hectáreas por mixer:</b> {hectareas_por_mixer:.2f} ha
-        </div>
-        """,
-        unsafe_allow_html=True)
+let tanques = Math.ceil(mezclas);
 
-        for p in st.session_state.productos:
+let producto_por_tanque = (producto_total_l / mezclas).toFixed(2);
 
-            if p["dosis"]>0:
+document.getElementById("agua_total").innerHTML =
+"Total agua: " + agua_total.toFixed(1) + " L";
 
-                nombre=p["nombre"] if p["nombre"] else "Producto"
+document.getElementById("producto_total").innerHTML =
+"Producto total: " + producto_total_l.toFixed(2) + " L";
 
-                cantidad_mixer=p["dosis"]*hectareas_por_mixer
-                total_lote=p["dosis"]*hectareas
+document.getElementById("mezclas").innerHTML =
+"Mezclas de mixer: " + mezclas.toFixed(2);
 
-                total_productos+=total_lote
+document.getElementById("tanques").innerHTML =
+"Tanques completos necesarios: " + tanques;
 
-                st.write(f"**{nombre}**: {cantidad_mixer:.3f} {p['unidad']} por mixer")
+document.getElementById("mezcla_tanque").innerHTML =
+"Cada tanque: " + mixer + " L agua + " + producto_por_tanque + " L producto";
 
-                wa_mixer.append(f"- {nombre}: {cantidad_mixer:.2f} {p['unidad']}")
-                wa_total.append(f"- {nombre}: {total_lote:.2f} {p['unidad']}")
+}
 
-        agua_total = litros_totales - total_productos
+</script>
 
-        st.markdown(
-        f"""
-        <div class="total">
-
-        <b>Litros totales aplicación:</b> {litros_totales:.0f} L  
-        <b>Producto total:</b> {total_productos:.2f} L/Kg  
-        <b>Agua total:</b> {agua_total:.2f} L  
-
-        <br>
-
-        <b>Mixers necesarios:</b> {mixers:.2f}
-
-        </div>
-        """,
-        unsafe_allow_html=True)
-
-        for t in wa_total:
-            st.write(t)
-
-# -------------------------------------------------
-# WHATSAPP
-# -------------------------------------------------
-
-        msg=(
-        f"*ORDEN APLICACION DRON*\n"
-        f"Lote: {nombre_lote}\n"
-        f"Superficie: {hectareas} ha\n"
-        f"Volumen: {volumen_aplicacion} L/ha\n"
-        f"Mixers: {mixers:.2f}\n"
-        f"\n--- POR MIXER ---\n"
-        +"\n".join(wa_mixer)+
-        "\n\n--- TOTAL LOTE ---\n"+
-        "\n".join(wa_total)+
-        f"\nAgua total: {agua_total:.2f} L"
-        )
-
-        st.markdown(
-        f'<a href="https://wa.me/?text={quote(msg)}" target="_blank">'
-        '<button style="width:100%;background:#25D366;color:white;padding:14px;border:none;border-radius:8px;font-weight:bold">'
-        'Enviar orden por WhatsApp'
-        '</button></a>',
-        unsafe_allow_html=True
-        )
-
-# -------------------------------------------------
-# GUARDAR HISTORIAL
-# -------------------------------------------------
-
-        if st.button("Guardar en historial"):
-
-            registro={
-            "fecha":datetime.now().strftime("%d/%m %H:%M"),
-            "lote":nombre_lote,
-            "ha":hectareas,
-            "mixers":round(mixers,2)
-            }
-
-            st.session_state.historial.append(registro)
-
-# =================================================
-# DELTA T
-# =================================================
-
-with tabs[1]:
-
-    st.subheader("Condiciones ambientales")
-
-    t,h=st.columns(2)
-
-    temp=t.number_input("Temperatura",25.0)
-    hum=h.number_input("Humedad",60.0)
-
-    dt=calculate_delta_t(temp,hum)
-
-    st.metric("Delta T",f"{dt} °C")
-
-    if 2<=dt<=8:
-        st.success("Condiciones óptimas")
-
-    elif dt<2:
-        st.warning("Riesgo deriva")
-
-    else:
-        st.error("Evaporación alta")
-
-# =================================================
-# CLIMA
-# =================================================
-
-with tabs[2]:
-
-    st.markdown(
-    '<a href="https://www.windy.com" target="_blank"><button style="width:100%;padding:15px">Windy</button></a>',
-    unsafe_allow_html=True)
-
-    st.markdown(
-    '<a href="https://www.smn.gob.ar" target="_blank"><button style="width:100%;padding:15px">Servicio Meteorológico</button></a>',
-    unsafe_allow_html=True)
-
-    st.markdown(
-    '<a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank"><button style="width:100%;padding:15px">Índice KP NOAA</button></a>',
-    unsafe_allow_html=True)
-
-# =================================================
-# HISTORIAL
-# =================================================
-
-with tabs[3]:
-
-    st.subheader("Aplicaciones guardadas")
-
-    for h in reversed(st.session_state.historial):
-
-        st.markdown(
-        f"""
-        <div class="hist">
-        {h['fecha']} | {h['lote']} | {h['ha']} ha | {h['mixers']} mixers
-        </div>
-        """,
-        unsafe_allow_html=True)
-
-# =================================================
-# SOBRE
-# =================================================
-
-with tabs[4]:
-
-    st.write("""
-Aplicación diseñada para pilotos de drones agrícolas.
-
-Funciones:
-
-• cálculo de mezcla por tanque  
-• total de agua y producto  
-• mixers necesarios (decimal)  
-• envío de orden por WhatsApp  
-• Delta-T  
-• historial de aplicaciones
-""")
-
-    st.caption("Gabriel Carrasco")
+</body>
+</html>
