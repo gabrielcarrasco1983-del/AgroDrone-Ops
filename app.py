@@ -152,8 +152,12 @@ with tabs[0]:
         hectareas = st.number_input("Superficie (ha)",10.0)
 
     with c2:
-        volumen_aplicacion = st.number_input("Volumen aplicación (L/ha)",10.0)
-        capacidad_mixer = st.number_input("Capacidad mixer (L)",300)
+        volumen_aplicacion = st.number_input(
+    "Volumen aplicación (L/ha)",
+    min_value=1.0,
+    value=10.0,
+    step=0.5
+)
 
     with c3:
         modo_campo = st.checkbox("Modo pantalla campo")
@@ -376,3 +380,4 @@ Funciones:
 """)
 
     st.caption("Gabriel Carrasco")
+
