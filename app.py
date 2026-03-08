@@ -1,204 +1,160 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+from flask import Flask, render_template_string, request
+import math
 
-<title>Planificador Aplicación Drone</title>
+app = Flask(__name__)
+
+HTML = """
+
+<!DOCTYPE html>
+<html>
+<head>
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
 
 body{
-font-family: Arial, sans-serif;
+font-family: Arial;
 background:#f7f9e8;
-margin:0;
-padding:0;
+padding:20px;
 color:#1f2d16;
-}
-
-header{
-background:#6a9f3a;
-color:white;
-padding:15px;
-text-align:center;
-font-size:22px;
-font-weight:bold;
-}
-
-.container{
-padding:15px;
-max-width:600px;
-margin:auto;
 }
 
 .card{
 background:white;
 padding:15px;
-margin-bottom:15px;
 border-radius:10px;
+margin-bottom:15px;
 box-shadow:0 2px 6px rgba(0,0,0,0.1);
 }
 
-.card h2{
-margin-top:0;
-color:#4f772d;
+h1{
+background:#6a9f3a;
+color:white;
+padding:10px;
+border-radius:8px;
 }
 
 input{
 width:100%;
-padding:10px;
-margin-top:5px;
-margin-bottom:10px;
-border-radius:6px;
-border:1px solid #ccc;
-font-size:16px;
+padding:8px;
+margin:5px 0 10px 0;
 }
 
 button{
-width:100%;
-padding:12px;
-border:none;
 background:#6a9f3a;
 color:white;
-font-size:18px;
-border-radius:8px;
-cursor:pointer;
+border:none;
+padding:10px;
+width:100%;
+font-size:16px;
+border-radius:6px;
 }
 
-button:hover{
-background:#588528;
-}
-
-.result{
-font-size:18px;
-margin:6px 0;
-}
-
-.big{
-font-size:24px;
-font-weight:bold;
-}
-
-.links a{
+a{
 display:block;
 margin:5px 0;
-color:#2d6a4f;
-font-weight:bold;
-text-decoration:none;
 }
 
 </style>
 
 </head>
+
 <body>
 
-<header>
-Planificador Aplicación Drone
-</header>
-
-<div class="container">
+<h1>Planificador Drone</h1>
 
 <div class="card">
 
-<h2>Datos del lote</h2>
+<form method="post">
 
-<label>Hectáreas</label>
-<input id="hectareas" type="number">
+Hectáreas
+<input name="hectareas" required>
 
-<label>Litros por hectárea</label>
-<input id="litros_ha" type="number">
+Litros por hectárea
+<input name="litros_ha" required>
 
-<label>Dosis producto (cc/ha)</label>
-<input id="dosis" type="number">
+Dosis producto (cc/ha)
+<input name="dosis" required>
 
-<label>Capacidad tanque mixer (L)</label>
-<input id="mixer" type="number">
+Capacidad tanque mixer (L)
+<input name="mixer" required>
 
-<button onclick="calcular()">Calcular</button>
+<button type="submit">Calcular</button>
+
+</form>
 
 </div>
 
-<div class="card">
-
-<h2>Resumen logístico</h2>
-
-<div class="result big" id="agua_total"></div>
-<div class="result" id="producto_total"></div>
-<div class="result" id="mezclas"></div>
-<div class="result" id="tanques"></div>
-
-</div>
+{% if resultado %}
 
 <div class="card">
 
-<h2>Mezcla por tanque</h2>
+<h3>Resumen</h3>
 
-<div class="result" id="mezcla_tanque"></div>
+<p><b>Total agua:</b> {{resultado.agua}} L</p>
+<p><b>Producto total:</b> {{resultado.producto}} L</p>
+<p><b>Mezclas de mixer:</b> {{resultado.mezclas}}</p>
+<p><b>Tanques necesarios:</b> {{resultado.tanques}}</p>
 
 </div>
 
 <div class="card">
 
-<h2>Clima y condiciones</h2>
+<h3>Mezcla por tanque</h3>
 
-<div class="links">
-
-<a href="https://www.windy.com" target="_blank">
-Pronóstico Windy
-</a>
-
-<a href="https://www.meteoblue.com" target="_blank">
-Pronóstico Meteoblue
-</a>
-
-<a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">
-Índice geomagnético KP (NOAA)
-</a>
+<p>{{resultado.mixer}} L agua</p>
+<p>{{resultado.producto_tanque}} L producto</p>
 
 </div>
 
-</div>
+{% endif %}
+
+<div class="card">
+
+<h3>Clima</h3>
+
+<a href="https://www.windy.com" target="_blank">Windy</a>
+<a href="https://www.meteoblue.com" target="_blank">Meteoblue</a>
+<a href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">NOAA KP Index</a>
 
 </div>
-
-<script>
-
-function calcular(){
-
-let hectareas = parseFloat(document.getElementById("hectareas").value);
-let litros_ha = parseFloat(document.getElementById("litros_ha").value);
-let dosis = parseFloat(document.getElementById("dosis").value);
-let mixer = parseFloat(document.getElementById("mixer").value);
-
-let agua_total = hectareas * litros_ha;
-
-let producto_total_cc = hectareas * dosis;
-let producto_total_l = producto_total_cc / 1000;
-
-let mezclas = agua_total / mixer;
-
-let tanques = Math.ceil(mezclas);
-
-let producto_por_tanque = (producto_total_l / mezclas).toFixed(2);
-
-document.getElementById("agua_total").innerHTML =
-"Total agua: " + agua_total.toFixed(1) + " L";
-
-document.getElementById("producto_total").innerHTML =
-"Producto total: " + producto_total_l.toFixed(2) + " L";
-
-document.getElementById("mezclas").innerHTML =
-"Mezclas de mixer: " + mezclas.toFixed(2);
-
-document.getElementById("tanques").innerHTML =
-"Tanques completos necesarios: " + tanques;
-
-document.getElementById("mezcla_tanque").innerHTML =
-"Cada tanque: " + mixer + " L agua + " + producto_por_tanque + " L producto";
-
-}
-
-</script>
 
 </body>
 </html>
+
+"""
+
+@app.route("/", methods=["GET","POST"])
+def home():
+
+    resultado = None
+
+    if request.method == "POST":
+
+        hectareas = float(request.form["hectareas"])
+        litros_ha = float(request.form["litros_ha"])
+        dosis = float(request.form["dosis"])
+        mixer = float(request.form["mixer"])
+
+        agua_total = hectareas * litros_ha
+        producto_total_l = (hectareas * dosis) / 1000
+
+        mezclas = agua_total / mixer
+        tanques = math.ceil(mezclas)
+
+        producto_por_tanque = producto_total_l / mezclas
+
+        resultado = {
+            "agua": round(agua_total,2),
+            "producto": round(producto_total_l,2),
+            "mezclas": round(mezclas,2),
+            "tanques": tanques,
+            "mixer": mixer,
+            "producto_tanque": round(producto_por_tanque,2)
+        }
+
+    return render_template_string(HTML, resultado=resultado)
+
+if __name__ == "__main__":
+    app.run(debug=True)
