@@ -6,7 +6,7 @@ from datetime import datetime
 st.set_page_config(page_title="AgroDrone Mixer", layout="wide")
 
 # -------------------------------------------------
-# ESTILO AGRO (MEJOR CONTRASTE PARA CELULAR)
+# ESTILO AGRO (MEJOR CONTRASTE CELULAR)
 # -------------------------------------------------
 
 st.markdown("""
@@ -17,72 +17,49 @@ background:#f8faf5;
 color:#1c2b1a;
 }
 
-/* TITULOS */
-
 h1,h2,h3{
 color:#2e5d2c;
 font-weight:700;
 }
 
-/* TEXTO GENERAL */
-
 p, span, label, div{
 color:#1c2b1a !important;
 }
-
-/* INPUTS */
 
 input{
 color:#1c2b1a !important;
 background:#ffffff !important;
 }
 
-/* SELECT */
-
 select{
 color:#1c2b1a !important;
 background:#ffffff !important;
 }
 
-/* NUMBERS */
-
 [data-baseweb="input"]{
 color:#1c2b1a !important;
 }
-
-/* RESUMEN */
 
 .resumen{
 background:#eef6ea;
 padding:18px;
 border-left:8px solid #4CAF50;
 border-radius:8px;
-color:#1c2b1a;
-font-weight:500;
 }
-
-/* TOTAL */
 
 .total{
 background:#fff8d6;
 padding:18px;
 border-top:6px solid #d4b106;
 border-radius:8px;
-color:#1c2b1a;
-font-weight:600;
 }
-
-/* HISTORIAL */
 
 .hist{
 background:#f3f3f3;
 padding:10px;
 border-radius:6px;
 margin-bottom:5px;
-color:#1c2b1a;
 }
-
-/* BOTONES STREAMLIT */
 
 .stButton>button{
 background:#4CAF50;
@@ -90,8 +67,6 @@ color:white;
 font-weight:600;
 border-radius:6px;
 }
-
-/* TABS */
 
 button[data-baseweb="tab"]{
 font-weight:600;
@@ -114,7 +89,7 @@ def calculate_delta_t(temp, hum):
     return round(temp - tw,2)
 
 # -------------------------------------------------
-# VARIABLES SESSION
+# SESSION STATE
 # -------------------------------------------------
 
 if "productos" not in st.session_state:
@@ -149,15 +124,27 @@ with tabs[0]:
 
     with c1:
         nombre_lote = st.text_input("Nombre del lote","Lote sin nombre")
-        hectareas = st.number_input("Superficie (ha)",10.0)
+
+        hectareas = st.number_input(
+            "Superficie (ha)",
+            min_value=0.1,
+            value=10.0
+        )
 
     with c2:
+
         volumen_aplicacion = st.number_input(
-    "Volumen aplicación (L/ha)",
-    min_value=1.0,
-    value=10.0,
-    step=0.5
-)
+            "Volumen aplicación (L/ha)",
+            min_value=1.0,
+            value=10.0,
+            step=0.5
+        )
+
+        capacidad_mixer = st.number_input(
+            "Capacidad mixer (L)",
+            min_value=1.0,
+            value=300.0
+        )
 
     with c3:
         modo_campo = st.checkbox("Modo pantalla campo")
@@ -203,13 +190,16 @@ with tabs[0]:
 # CALCULOS
 # -------------------------------------------------
 
-    if hectareas > 0 and volumen_aplicacion > 0:
+    if hectareas > 0 and volumen_aplicacion > 0 and capacidad_mixer > 0:
 
         litros_totales = hectareas * volumen_aplicacion
+
         mixers = litros_totales / capacidad_mixer
+
         hectareas_por_mixer = capacidad_mixer / volumen_aplicacion
 
         total_productos = 0
+
         wa_mixer=[]
         wa_total=[]
 
@@ -284,7 +274,7 @@ with tabs[0]:
         )
 
 # -------------------------------------------------
-# GUARDAR HISTORIAL
+# HISTORIAL
 # -------------------------------------------------
 
         if st.button("Guardar en historial"):
@@ -380,4 +370,3 @@ Funciones:
 """)
 
     st.caption("Gabriel Carrasco")
-
