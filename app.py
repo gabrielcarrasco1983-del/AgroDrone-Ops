@@ -279,6 +279,8 @@ with tabs[0]:
     c3, c4, c5 = st.columns(3)
     with c3:
         cultivo = st.selectbox("Cultivo", CULTIVOS, key="liq_cultivo")
+        if cultivo == "Otro":
+            cultivo = st.text_input("Especificá el cultivo", key="liq_cultivo_otro")
     with c4:
         velocidad = st.number_input("Velocidad (km/h)", min_value=1.0, value=20.0, step=0.5, key="liq_vel")
     with c5:
@@ -404,6 +406,8 @@ with tabs[1]:
         sol_ha = st.number_input("Superficie (ha)", min_value=0.1, value=10.0, step=0.5, key="sol_ha")
     with s2:
         sol_cultivo = st.selectbox("Cultivo", CULTIVOS, key="sol_cultivo")
+        if sol_cultivo == "Otro":
+            sol_cultivo = st.text_input("Especificá el cultivo", key="sol_cultivo_otro")
 
     s3, s4 = st.columns(2)
     with s3:
@@ -457,12 +461,15 @@ with tabs[1]:
 
         for i, esp in enumerate(st.session_state.receta_mezcla):
             r1, r2, r3 = st.columns([0.50, 0.35, 0.15])
-            st.session_state.receta_mezcla[i]["especie"] = r1.selectbox(
+            especie_sel = r1.selectbox(
                 f"Especie {i + 1}",
                 ESPECIES_MEZCLA,
                 index=ESPECIES_MEZCLA.index(esp["especie"]) if esp["especie"] in ESPECIES_MEZCLA else 0,
                 key=f"esp_{i}"
             )
+            if especie_sel == "Otro":
+                especie_sel = r1.text_input("Especificá la especie", key=f"esp_otro_{i}")
+            st.session_state.receta_mezcla[i]["especie"] = especie_sel
             st.session_state.receta_mezcla[i]["kgha"] = r2.number_input(
                 "kg/ha", value=float(esp["kgha"]), min_value=0.0, step=0.1, key=f"esp_kg_{i}"
             )
