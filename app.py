@@ -256,15 +256,23 @@ with tabs[0]:
 
     st.subheader("Datos del lote")
 
+    # Fila 1: nombre y superficie
     c1, c2 = st.columns(2)
-
     with c1:
         nombre_lote = st.text_input("Nombre del lote", "Lote sin nombre")
         hectareas = st.number_input("Superficie (ha)", min_value=0.1, value=10.0, step=0.5)
-
     with c2:
         volumen_aplicacion = st.number_input("Volumen aplicación (L/ha)", min_value=1.0, value=10.0, step=0.5)
         capacidad_mixer = st.number_input("Capacidad mixer (L)", min_value=1.0, value=300.0, step=10.0)
+
+    # Fila 2: cultivo, velocidad y altura
+    c3, c4, c5 = st.columns(3)
+    with c3:
+        cultivo = st.selectbox("Cultivo", ["Soja", "Maíz", "Trigo", "Girasol", "Sorgo", "Otro"])
+    with c4:
+        velocidad = st.number_input("Velocidad (km/h)", min_value=1.0, value=20.0, step=0.5)
+    with c5:
+        altura = st.number_input("Altura de vuelo (m)", min_value=0.5, value=3.0, step=0.5)
 
     st.divider()
 
@@ -353,8 +361,11 @@ with tabs[0]:
     msg = (
         f"*ORDEN APLICACION DRON*\n"
         f"Lote: {nombre_lote}\n"
+        f"Cultivo: {cultivo}\n"
         f"Superficie: {hectareas} ha\n"
         f"Volumen: {volumen_aplicacion} L/ha\n"
+        f"Velocidad: {velocidad} km/h\n"
+        f"Altura: {altura} m\n"
         f"Mixers: {res['mixers']:.2f}\n"
         f"\n--- POR MIXER ---\n"
         + "\n".join(wa_mixer)
@@ -377,8 +388,13 @@ with tabs[0]:
         registro = {
             "fecha": datetime.now().strftime("%d/%m %H:%M"),
             "lote": nombre_lote,
+            "cultivo": cultivo,
             "ha": hectareas,
             "mixers": round(res["mixers"], 2),
+            "productos": [
+                f"{p['nombre']} {p['dosis']:.2f} {p['unidad']}/ha"
+                for p in res["detalle"]
+            ],
         }
         st.session_state.historial.append(registro)
         st.success("✅ Guardado en historial")
@@ -438,10 +454,15 @@ with tabs[3]:
             st.rerun()
 
         for reg in reversed(st.session_state.historial):
+            productos_str = " | ".join(reg.get("productos", []))
             st.markdown(
                 f"""
                 <div class="hist">
-                📅 {reg['fecha']} &nbsp;|&nbsp; 🌾 {reg['lote']} &nbsp;|&nbsp; {reg['ha']} ha &nbsp;|&nbsp; {reg['mixers']} mixers
+                📅 {reg['fecha']} &nbsp;|&nbsp;
+                🌾 {reg['lote']} ({reg.get('cultivo', '-')}) &nbsp;|&nbsp;
+                {reg['ha']} ha &nbsp;|&nbsp;
+                {reg['mixers']} mixers<br>
+                <small>🧪 {productos_str}</small>
                 </div>
                 """,
                 unsafe_allow_html=True
@@ -462,7 +483,7 @@ Aplicación diseñada para pilotos de drones agrícolas.
 - Cálculo de mezcla por tanque
 - Total de agua y producto
 - Mixers necesarios (valor decimal)
-- Envío de orden por WhatsApp
+- Envío de orden por WhatsApp con cultivo, velocidad y altura
 - Delta-T para condiciones ambientales
 - Historial de aplicaciones por sesión
 - Acceso rápido a clima y GPS
