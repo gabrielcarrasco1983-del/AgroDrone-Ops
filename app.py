@@ -27,23 +27,18 @@ st.markdown("""
 st.markdown("""
 <style>
 
-/* ── BASE: fondo claro y texto oscuro forzado ── */
-.stApp {
-    background: #f8faf5 !important;
-}
+.stApp { background: #f8faf5 !important; }
 
 .stApp, .stApp p, .stApp span, .stApp div,
 .stApp li, .stApp strong, .stApp b {
     color: #1c2b1a !important;
 }
 
-/* ── TÍTULOS ── */
 .stApp h1, .stApp h2, .stApp h3 {
     color: #1a3d18 !important;
     font-weight: 700 !important;
 }
 
-/* ── LABELS DE INPUTS ── */
 .stApp label,
 [data-testid="stWidgetLabel"] p,
 [data-testid="stWidgetLabel"] span {
@@ -51,38 +46,32 @@ st.markdown("""
     font-weight: 600 !important;
 }
 
-/* ── CAMPOS DE TEXTO Y NÚMERO ── */
 input, textarea {
     color: #1c2b1a !important;
     background: #ffffff !important;
 }
 
-/* ── SELECTBOX ── */
 [data-baseweb="select"] div,
 [data-baseweb="select"] span {
     color: #1c2b1a !important;
     background: #ffffff !important;
 }
 
-/* ── MÉTRICAS ── */
 [data-testid="stMetricValue"],
 [data-testid="stMetricLabel"] {
     color: #1c2b1a !important;
 }
 
-/* ── TABS ── */
 button[data-baseweb="tab"] p,
 button[data-baseweb="tab"] span {
     color: #1a3d18 !important;
     font-weight: 600 !important;
 }
 
-/* ── CAPTION ── */
 [data-testid="stCaptionContainer"] p {
     color: #3a4f39 !important;
 }
 
-/* ── CAJA RESUMEN (verde claro) ── */
 .resumen {
     background: #d6edcc !important;
     padding: 18px;
@@ -90,12 +79,8 @@ button[data-baseweb="tab"] span {
     border-radius: 8px;
     margin-bottom: 12px;
 }
+.resumen, .resumen * { color: #0d1f0c !important; }
 
-.resumen, .resumen * {
-    color: #0d1f0c !important;
-}
-
-/* ── CAJA TOTAL (amarillo) ── */
 .total {
     background: #fff3b0 !important;
     padding: 18px;
@@ -103,24 +88,16 @@ button[data-baseweb="tab"] span {
     border-radius: 8px;
     margin-bottom: 12px;
 }
+.total, .total * { color: #3a2e00 !important; }
 
-.total, .total * {
-    color: #3a2e00 !important;
-}
-
-/* ── CAJA HISTORIAL ── */
 .hist {
     background: #e0e0e0 !important;
     padding: 12px;
     border-radius: 6px;
     margin-bottom: 8px;
 }
+.hist, .hist * { color: #1c2b1a !important; }
 
-.hist, .hist * {
-    color: #1c2b1a !important;
-}
-
-/* ── CAJA ALERTA ── */
 .alerta {
     background: #fff0b3 !important;
     padding: 12px;
@@ -128,13 +105,11 @@ button[data-baseweb="tab"] span {
     border-radius: 6px;
     margin-bottom: 10px;
 }
-
 .alerta, .alerta * {
     color: #4d3800 !important;
     font-weight: 600 !important;
 }
 
-/* ── BOTONES ── */
 .stButton > button {
     background: #2e7d32 !important;
     color: #ffffff !important;
@@ -143,12 +118,8 @@ button[data-baseweb="tab"] span {
     border: none !important;
     width: 100%;
 }
+.stButton > button:hover { background: #1b5e20 !important; }
 
-.stButton > button:hover {
-    background: #1b5e20 !important;
-}
-
-/* ── BOTÓN WHATSAPP ── */
 .btn-wa {
     display: block;
     width: 100%;
@@ -163,7 +134,6 @@ button[data-baseweb="tab"] span {
     font-size: 1rem;
 }
 
-/* ── BOTONES CLIMA ── */
 .btn-clima {
     display: block;
     width: 100%;
@@ -182,11 +152,34 @@ button[data-baseweb="tab"] span {
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------
+# CONSTANTES
+# -------------------------------------------------
+
+CULTIVOS = [
+    "Soja", "Maíz", "Maíz 2da", "Trigo", "Cebada",
+    "Girasol", "Sorgo", "Barbecho", "Pastura", "Otro"
+]
+
+SEMILLAS = [
+    "Avena", "Rye Grass", "Festuca", "Trébol blanco", "Trébol rojo",
+    "Cebada", "Mezcla de pasturas", "Otro"
+]
+
+FERTILIZANTES = [
+    "Urea", "DAP (Fosfato diamónico)", "Superfosfato simple",
+    "Superfosfato triple", "Mezcla", "Otro"
+]
+
+ESPECIES_MEZCLA = [
+    "Rye Grass", "Festuca", "Trébol blanco", "Trébol rojo",
+    "Melilotus", "Cebadilla", "Agropiro", "Pasto ovillo", "Otro"
+]
+
+# -------------------------------------------------
 # FUNCIONES
 # -------------------------------------------------
 
 def calcular_delta_t(temp: float, hum: float) -> float:
-    """Calcula el Delta-T a partir de temperatura y humedad relativa."""
     tw = (
         temp * math.atan(0.151977 * (hum + 8.313659) ** 0.5)
         + math.atan(temp + hum)
@@ -197,8 +190,7 @@ def calcular_delta_t(temp: float, hum: float) -> float:
     return round(temp - tw, 2)
 
 
-def calcular_mezcla(hectareas, volumen_aplicacion, capacidad_mixer, productos):
-    """Devuelve dict con todos los resultados de la mezcla."""
+def calcular_mezcla_liquidos(hectareas, volumen_aplicacion, capacidad_mixer, productos):
     litros_totales = hectareas * volumen_aplicacion
     mixers = litros_totales / capacidad_mixer
     hectareas_por_mixer = capacidad_mixer / volumen_aplicacion
@@ -230,6 +222,16 @@ def calcular_mezcla(hectareas, volumen_aplicacion, capacidad_mixer, productos):
         "detalle": detalle,
     }
 
+
+def calcular_solidos(hectareas, dosis_kgha):
+    kg_totales = hectareas * dosis_kgha
+    return round(kg_totales, 2)
+
+
+import math as _math
+def bolsas_necesarias(kg_totales, kg_bolsa):
+    return _math.ceil(kg_totales / kg_bolsa)
+
 # -------------------------------------------------
 # SESSION STATE
 # -------------------------------------------------
@@ -240,52 +242,53 @@ if "productos" not in st.session_state:
 if "historial" not in st.session_state:
     st.session_state.historial = []
 
+if "receta_mezcla" not in st.session_state:
+    st.session_state.receta_mezcla = [{"especie": "Rye Grass", "kgha": 0.0}]
+
 # -------------------------------------------------
 # TITULO
 # -------------------------------------------------
 
 st.title("🚁 AGRODRONE MIXER")
 
-tabs = st.tabs(["🧪 Calculadora", "🌡️ Delta-T", "🌦 Clima", "📋 Historial", "ℹ️ Sobre"])
+tabs = st.tabs([
+    "🧪 Líquidos",
+    "🌾 Sólidos",
+    "🌡️ Delta-T",
+    "🌦 Clima",
+    "📋 Historial",
+    "ℹ️ Sobre"
+])
 
 # =================================================
-# CALCULADORA
+# TAB 1 — LÍQUIDOS
 # =================================================
 
 with tabs[0]:
 
     st.subheader("Datos del lote")
 
-    # Fila 1: nombre y superficie
     c1, c2 = st.columns(2)
     with c1:
-        nombre_lote = st.text_input("Nombre del lote", "Lote sin nombre")
-        hectareas = st.number_input("Superficie (ha)", min_value=0.1, value=10.0, step=0.5)
+        nombre_lote = st.text_input("Nombre del lote", "Lote sin nombre", key="liq_nombre")
+        hectareas = st.number_input("Superficie (ha)", min_value=0.1, value=10.0, step=0.5, key="liq_ha")
     with c2:
         volumen_aplicacion = st.number_input("Volumen aplicación (L/ha)", min_value=1.0, value=10.0, step=0.5)
         capacidad_mixer = st.number_input("Capacidad mixer (L)", min_value=1.0, value=300.0, step=10.0)
 
-    # Fila 2: cultivo, velocidad y altura
     c3, c4, c5 = st.columns(3)
     with c3:
-        cultivo = st.selectbox("Cultivo", ["Soja", "Maíz", "Trigo", "Girasol", "Sorgo", "Otro"])
+        cultivo = st.selectbox("Cultivo", CULTIVOS, key="liq_cultivo")
     with c4:
-        velocidad = st.number_input("Velocidad (km/h)", min_value=1.0, value=20.0, step=0.5)
+        velocidad = st.number_input("Velocidad (km/h)", min_value=1.0, value=20.0, step=0.5, key="liq_vel")
     with c5:
-        altura = st.number_input("Altura de vuelo (m)", min_value=0.5, value=3.0, step=0.5)
+        altura = st.number_input("Altura de vuelo (m)", min_value=0.5, value=3.0, step=0.5, key="liq_alt")
 
     st.divider()
-
-    # -------------------------------------------------
-    # PRODUCTOS
-    # -------------------------------------------------
-
     st.subheader("Productos")
 
     for i, prod in enumerate(st.session_state.productos):
-
         col1, col2, col3, col4 = st.columns([0.44, 0.22, 0.22, 0.12])
-
         st.session_state.productos[i]["nombre"] = col1.text_input(
             f"Producto {i + 1}", value=prod["nombre"], key=f"prod_{i}"
         )
@@ -295,23 +298,18 @@ with tabs[0]:
         st.session_state.productos[i]["unidad"] = col3.selectbox(
             "Unidad", ["L", "Kg"], key=f"unidad_{i}"
         )
-
         if len(st.session_state.productos) > 1:
             if col4.button("🗑️", key=f"del_{i}"):
                 st.session_state.productos.pop(i)
                 st.rerun()
 
-    if st.button("➕ Agregar producto"):
+    if st.button("➕ Agregar producto", key="add_prod"):
         st.session_state.productos.append({"nombre": "", "dosis": 0.0, "unidad": "L"})
         st.rerun()
 
     st.divider()
 
-    # -------------------------------------------------
-    # CALCULOS
-    # -------------------------------------------------
-
-    res = calcular_mezcla(hectareas, volumen_aplicacion, capacidad_mixer, st.session_state.productos)
+    res = calcular_mezcla_liquidos(hectareas, volumen_aplicacion, capacidad_mixer, st.session_state.productos)
 
     if res["total_productos"] > res["litros_totales"]:
         st.markdown(
@@ -345,10 +343,6 @@ with tabs[0]:
         unsafe_allow_html=True
     )
 
-    # -------------------------------------------------
-    # WHATSAPP
-    # -------------------------------------------------
-
     wa_mixer = [
         f"- {p['nombre']}: {p['cantidad_mixer']:.2f} {p['unidad']} ({p['dosis']:.2f} {p['unidad']}/ha)"
         for p in res["detalle"]
@@ -358,8 +352,8 @@ with tabs[0]:
         for p in res["detalle"]
     ]
 
-    msg = (
-        f"*ORDEN APLICACION DRON*\n"
+    msg_liq = (
+        f"*ORDEN APLICACION DRON - LÍQUIDOS*\n"
         f"Lote: {nombre_lote}\n"
         f"Cultivo: {cultivo}\n"
         f"Superficie: {hectareas} ha\n"
@@ -375,17 +369,14 @@ with tabs[0]:
     )
 
     st.markdown(
-        f'<a class="btn-wa" href="https://wa.me/?text={quote(msg)}" target="_blank">'
+        f'<a class="btn-wa" href="https://wa.me/?text={quote(msg_liq)}" target="_blank">'
         '📲 Enviar orden por WhatsApp</a>',
         unsafe_allow_html=True
     )
 
-    # -------------------------------------------------
-    # GUARDAR HISTORIAL
-    # -------------------------------------------------
-
-    if st.button("💾 Guardar en historial"):
+    if st.button("💾 Guardar en historial", key="save_liq"):
         registro = {
+            "tipo": "💧 Líquidos",
             "fecha": datetime.now().strftime("%d/%m %H:%M"),
             "lote": nombre_lote,
             "cultivo": cultivo,
@@ -400,20 +391,207 @@ with tabs[0]:
         st.success("✅ Guardado en historial")
 
 # =================================================
-# DELTA T
+# TAB 2 — SÓLIDOS
 # =================================================
 
 with tabs[1]:
 
+    st.subheader("Datos del lote")
+
+    s1, s2 = st.columns(2)
+    with s1:
+        sol_nombre = st.text_input("Nombre del lote", "Lote sin nombre", key="sol_nombre")
+        sol_ha = st.number_input("Superficie (ha)", min_value=0.1, value=10.0, step=0.5, key="sol_ha")
+    with s2:
+        sol_cultivo = st.selectbox("Cultivo", CULTIVOS, key="sol_cultivo")
+
+    s3, s4 = st.columns(2)
+    with s3:
+        sol_velocidad = st.number_input("Velocidad (km/h)", min_value=1.0, value=20.0, step=0.5, key="sol_vel")
+    with s4:
+        sol_altura = st.number_input("Altura de vuelo (m)", min_value=0.5, value=3.0, step=0.5, key="sol_alt")
+
+    st.divider()
+    st.subheader("Producto")
+
+    tipo_producto = st.radio(
+        "Tipo de producto",
+        ["Semillas", "Fertilizantes", "Otro"],
+        horizontal=True,
+        key="sol_tipo"
+    )
+
+    es_mezcla = False
+    nombre_producto_final = ""
+    dosis_total_kgha = 0.0
+
+    if tipo_producto == "Semillas":
+        sel_semilla = st.selectbox("Semilla", SEMILLAS, key="sol_semilla")
+        if sel_semilla == "Mezcla de pasturas":
+            es_mezcla = True
+            nombre_producto_final = "Mezcla de pasturas"
+        elif sel_semilla == "Otro":
+            nombre_producto_final = st.text_input("Especificá la semilla", key="sol_semilla_otro")
+        else:
+            nombre_producto_final = sel_semilla
+
+    elif tipo_producto == "Fertilizantes":
+        sel_ferti = st.selectbox("Fertilizante", FERTILIZANTES, key="sol_ferti")
+        if sel_ferti == "Otro":
+            nombre_producto_final = st.text_input("Especificá el fertilizante", key="sol_ferti_otro")
+        else:
+            nombre_producto_final = sel_ferti
+
+    else:
+        nombre_producto_final = st.text_input("Nombre del producto", key="sol_otro_nombre")
+
+    # -------------------------------------------------
+    # RECETA MEZCLA DE PASTURAS
+    # -------------------------------------------------
+
+    receta_lineas = []
+
+    if es_mezcla:
+        st.markdown("#### 🌿 Receta de la mezcla")
+        st.caption("Ingresá cada especie con su dosis en kg/ha")
+
+        for i, esp in enumerate(st.session_state.receta_mezcla):
+            r1, r2, r3 = st.columns([0.50, 0.35, 0.15])
+            st.session_state.receta_mezcla[i]["especie"] = r1.selectbox(
+                f"Especie {i + 1}",
+                ESPECIES_MEZCLA,
+                index=ESPECIES_MEZCLA.index(esp["especie"]) if esp["especie"] in ESPECIES_MEZCLA else 0,
+                key=f"esp_{i}"
+            )
+            st.session_state.receta_mezcla[i]["kgha"] = r2.number_input(
+                "kg/ha", value=float(esp["kgha"]), min_value=0.0, step=0.1, key=f"esp_kg_{i}"
+            )
+            if len(st.session_state.receta_mezcla) > 1:
+                if r3.button("🗑️", key=f"del_esp_{i}"):
+                    st.session_state.receta_mezcla.pop(i)
+                    st.rerun()
+
+        if st.button("➕ Agregar especie", key="add_esp"):
+            st.session_state.receta_mezcla.append({"especie": "Rye Grass", "kgha": 0.0})
+            st.rerun()
+
+        dosis_total_kgha = sum(
+            e["kgha"] for e in st.session_state.receta_mezcla if e["kgha"] > 0
+        )
+        receta_lineas = [
+            f"  - {e['especie']}: {e['kgha']:.2f} kg/ha"
+            for e in st.session_state.receta_mezcla if e["kgha"] > 0
+        ]
+
+        st.markdown(f"**Dosis total mezcla: {dosis_total_kgha:.2f} kg/ha**")
+
+    else:
+        dosis_total_kgha = st.number_input(
+            "Dosis (kg/ha)", min_value=0.0, value=0.0, step=0.5, key="sol_dosis"
+        )
+
+    st.divider()
+
+    # -------------------------------------------------
+    # PRESENTACIÓN
+    # -------------------------------------------------
+
+    st.subheader("Presentación")
+
+    presentacion = st.radio(
+        "¿Cómo viene el producto?",
+        ["Granel / Tolva", "Bolsas"],
+        horizontal=True,
+        key="sol_presentacion"
+    )
+
+    kg_bolsa = None
+    if presentacion == "Bolsas":
+        kg_bolsa = st.number_input(
+            "Kilos por bolsa", min_value=0.1, value=25.0, step=0.5, key="sol_kg_bolsa"
+        )
+
+    st.divider()
+
+    # -------------------------------------------------
+    # RESULTADOS SÓLIDOS
+    # -------------------------------------------------
+
+    kg_totales = calcular_solidos(sol_ha, dosis_total_kgha)
+
+    if dosis_total_kgha > 0:
+        resumen_html = f"""
+        <div class="resumen">
+        <b>⚖️ Dosis:</b> {dosis_total_kgha:.2f} kg/ha<br>
+        <b>📦 Kilos totales:</b> {kg_totales:.0f} kg
+        """
+        if presentacion == "Bolsas" and kg_bolsa and kg_bolsa > 0:
+            n_bolsas = bolsas_necesarias(kg_totales, kg_bolsa)
+            resumen_html += f"<br><b>🗂️ Bolsas necesarias ({kg_bolsa:.0f} kg c/u):</b> {n_bolsas}"
+        resumen_html += "</div>"
+        st.markdown(resumen_html, unsafe_allow_html=True)
+
+        # -------------------------------------------------
+        # WHATSAPP SÓLIDOS
+        # -------------------------------------------------
+
+        lineas_wa = [f"*ORDEN APLICACION DRON - SÓLIDOS*"]
+        lineas_wa.append(f"Lote: {sol_nombre}")
+        lineas_wa.append(f"Cultivo: {sol_cultivo}")
+        lineas_wa.append(f"Superficie: {sol_ha} ha")
+        lineas_wa.append(f"Velocidad: {sol_velocidad} km/h")
+        lineas_wa.append(f"Altura: {sol_altura} m")
+        lineas_wa.append(f"Producto: {nombre_producto_final}")
+
+        if receta_lineas:
+            lineas_wa.extend(receta_lineas)
+
+        lineas_wa.append(f"Dosis total: {dosis_total_kgha:.2f} kg/ha")
+        lineas_wa.append(f"Total: {kg_totales:.0f} kg")
+
+        if presentacion == "Bolsas" and kg_bolsa and kg_bolsa > 0:
+            n_bolsas = bolsas_necesarias(kg_totales, kg_bolsa)
+            lineas_wa.append(f"Presentación: Bolsas {kg_bolsa:.0f} kg")
+            lineas_wa.append(f"Bolsas necesarias: {n_bolsas}")
+        else:
+            lineas_wa.append("Presentación: Granel / Tolva")
+
+        msg_sol = "\n".join(lineas_wa)
+
+        st.markdown(
+            f'<a class="btn-wa" href="https://wa.me/?text={quote(msg_sol)}" target="_blank">'
+            '📲 Enviar orden por WhatsApp</a>',
+            unsafe_allow_html=True
+        )
+
+        if st.button("💾 Guardar en historial", key="save_sol"):
+            registro = {
+                "tipo": "🌾 Sólidos",
+                "fecha": datetime.now().strftime("%d/%m %H:%M"),
+                "lote": sol_nombre,
+                "cultivo": sol_cultivo,
+                "ha": sol_ha,
+                "mixers": "-",
+                "productos": [f"{nombre_producto_final} {dosis_total_kgha:.2f} kg/ha"],
+            }
+            st.session_state.historial.append(registro)
+            st.success("✅ Guardado en historial")
+    else:
+        st.info("Ingresá la dosis para ver los resultados.")
+
+# =================================================
+# TAB 3 — DELTA T
+# =================================================
+
+with tabs[2]:
+
     st.subheader("Condiciones ambientales")
 
     col_t, col_h = st.columns(2)
-
     temp = col_t.number_input("Temperatura (°C)", value=25.0, step=0.5)
     hum = col_h.number_input("Humedad relativa (%)", value=60.0, step=1.0, min_value=1.0, max_value=100.0)
 
     dt = calcular_delta_t(temp, hum)
-
     st.metric("Delta T", f"{dt} °C")
 
     if 2 <= dt <= 8:
@@ -427,10 +605,10 @@ with tabs[1]:
     st.caption("Delta-T = diferencia entre temperatura del aire y temperatura de bulbo húmedo. Rango ideal: 2 a 8 °C.")
 
 # =================================================
-# CLIMA
+# TAB 4 — CLIMA
 # =================================================
 
-with tabs[2]:
+with tabs[3]:
 
     st.subheader("Acceso rápido al clima")
 
@@ -439,10 +617,10 @@ with tabs[2]:
     st.markdown('<a class="btn-clima" href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">🛰️ Índice KP NOAA (GPS)</a>', unsafe_allow_html=True)
 
 # =================================================
-# HISTORIAL
+# TAB 5 — HISTORIAL
 # =================================================
 
-with tabs[3]:
+with tabs[4]:
 
     st.subheader("Aplicaciones guardadas")
 
@@ -455,13 +633,15 @@ with tabs[3]:
 
         for reg in reversed(st.session_state.historial):
             productos_str = " | ".join(reg.get("productos", []))
+            mixers_str = f"{reg['mixers']} mixers" if reg['mixers'] != "-" else "sólidos"
             st.markdown(
                 f"""
                 <div class="hist">
+                {reg['tipo']} &nbsp;|&nbsp;
                 📅 {reg['fecha']} &nbsp;|&nbsp;
                 🌾 {reg['lote']} ({reg.get('cultivo', '-')}) &nbsp;|&nbsp;
                 {reg['ha']} ha &nbsp;|&nbsp;
-                {reg['mixers']} mixers<br>
+                {mixers_str}<br>
                 <small>🧪 {productos_str}</small>
                 </div>
                 """,
@@ -469,10 +649,10 @@ with tabs[3]:
             )
 
 # =================================================
-# SOBRE
+# TAB 6 — SOBRE
 # =================================================
 
-with tabs[4]:
+with tabs[5]:
 
     st.subheader("AgroDrone Mixer")
 
@@ -480,10 +660,11 @@ with tabs[4]:
 Aplicación diseñada para pilotos de drones agrícolas.
 
 **Funciones:**
-- Cálculo de mezcla por tanque
-- Total de agua y producto
-- Mixers necesarios (valor decimal)
-- Envío de orden por WhatsApp con cultivo, velocidad y altura
+- Calculadora de mezcla para aplicaciones líquidas
+- Calculadora de sólidos: semillas y fertilizantes
+- Constructor de receta para mezclas de pasturas
+- Cálculo de bolsas necesarias por lote
+- Envío de orden por WhatsApp
 - Delta-T para condiciones ambientales
 - Historial de aplicaciones por sesión
 - Acceso rápido a clima y GPS
