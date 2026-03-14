@@ -199,11 +199,12 @@ def calcular_mezcla(hectareas, volumen_aplicacion, capacidad_mixer, productos):
             detalle.append({
                 "nombre": p["nombre"],
                 "unidad": p["unidad"],
+                "dosis": p["dosis"],
                 "cantidad_mixer": cantidad_mixer,
                 "total_lote": total_lote,
             })
 
-    agua_total = max(litros_totales - total_productos, 0.0)  # FIX: nunca negativo
+    agua_total = max(litros_totales - total_productos, 0.0)
 
     return {
         "litros_totales": litros_totales,
@@ -272,7 +273,6 @@ with tabs[0]:
             "Unidad", ["L", "Kg"], key=f"unidad_{i}"
         )
 
-        # Botón eliminar (solo si hay más de 1 producto)
         if len(st.session_state.productos) > 1:
             if col4.button("🗑️", key=f"del_{i}"):
                 st.session_state.productos.pop(i)
@@ -290,7 +290,6 @@ with tabs[0]:
 
     res = calcular_mezcla(hectareas, volumen_aplicacion, capacidad_mixer, st.session_state.productos)
 
-    # Aviso si agua_total fue ajustada a 0
     if res["total_productos"] > res["litros_totales"]:
         st.markdown(
             '<div class="alerta">⚠️ Las dosis ingresadas superan el volumen de aplicación. Revisá los valores.</div>',
@@ -327,8 +326,14 @@ with tabs[0]:
     # WHATSAPP
     # -------------------------------------------------
 
-    wa_mixer = [f"- {p['nombre']}: {p['cantidad_mixer']:.2f} {p['unidad']}" for p in res["detalle"]]
-    wa_total = [f"- {p['nombre']}: {p['total_lote']:.2f} {p['unidad']}" for p in res["detalle"]]
+    wa_mixer = [
+        f"- {p['nombre']}: {p['cantidad_mixer']:.2f} {p['unidad']} ({p['dosis']:.2f} {p['unidad']}/ha)"
+        for p in res["detalle"]
+    ]
+    wa_total = [
+        f"- {p['nombre']}: {p['total_lote']:.2f} {p['unidad']} ({p['dosis']:.2f} {p['unidad']}/ha)"
+        for p in res["detalle"]
+    ]
 
     msg = (
         f"*ORDEN APLICACION DRON*\n"
@@ -371,7 +376,7 @@ with tabs[1]:
 
     st.subheader("Condiciones ambientales")
 
-    col_t, col_h = st.columns(2)  # FIX: renombrado para evitar conflicto con loop historial
+    col_t, col_h = st.columns(2)
 
     temp = col_t.number_input("Temperatura (°C)", value=25.0, step=0.5)
     hum = col_h.number_input("Humedad relativa (%)", value=60.0, step=1.0, min_value=1.0, max_value=100.0)
@@ -417,7 +422,7 @@ with tabs[3]:
             st.session_state.historial = []
             st.rerun()
 
-        for reg in reversed(st.session_state.historial):  # FIX: variable renombrada de 'h' a 'reg'
+        for reg in reversed(st.session_state.historial):
             st.markdown(
                 f"""
                 <div class="hist">
