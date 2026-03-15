@@ -248,7 +248,7 @@ def bolsas_necesarias(kg_totales, kg_bolsa):
 # -------------------------------------------------
 
 def _safe(text: str) -> str:
-    """Normaliza texto para PDF (latin-1 safe)."""
+    """Normaliza tildes y elimina todo carácter fuera de latin-1 (emojis incluidos)."""
     repl = {
         "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u",
         "Á": "A", "É": "E", "Í": "I", "Ó": "O", "Ú": "U",
@@ -257,7 +257,8 @@ def _safe(text: str) -> str:
     }
     for k, v in repl.items():
         text = text.replace(k, v)
-    return text
+    # Descarta silenciosamente emojis y cualquier símbolo fuera de latin-1
+    return text.encode("latin-1", errors="ignore").decode("latin-1")
 
 
 def generar_pdf_bitacora(bitacora: list) -> bytes:
@@ -284,15 +285,24 @@ def generar_pdf_bitacora(bitacora: list) -> bytes:
         return bytes(pdf.output())
 
     for entry in bitacora:
+        # Tipo sin emojis para el PDF
+        tipo_raw = entry.get("tipo", "")
+        if "Liquid" in tipo_raw or "Liquid" in tipo_raw:
+            tipo_label = "Liquidos"
+        elif "lidos" in tipo_raw:
+            tipo_label = "Solidos"
+        else:
+            tipo_label = _safe(tipo_raw)
+
         pdf.set_fill_color(214, 237, 204)
         pdf.set_text_color(13, 31, 12)
         pdf.set_font("Helvetica", "B", 11)
-        tipo_s = _safe(entry.get("tipo", ""))
         pdf.cell(
             0, 9,
-            f"{tipo_s}   |   {entry.get('fecha', '')}   |   Piloto: {_safe(entry.get('piloto', '-'))}",
+            f"[{tipo_label}]   {entry.get('fecha', '')}   |   Piloto: {_safe(entry.get('piloto', '-'))}",
             ln=True, fill=True
         )
+
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(30, 50, 28)
         pdf.cell(
@@ -300,14 +310,17 @@ def generar_pdf_bitacora(bitacora: list) -> bytes:
             f"Lote: {_safe(entry.get('lote', '-'))}   |   Cultivo: {_safe(entry.get('cultivo', '-'))}   |   {entry.get('ha', 0)} ha",
             ln=True
         )
+
         for prod in entry.get("productos", []):
             pdf.cell(6)
             pdf.cell(0, 6, f"- {_safe(prod)}", ln=True)
+
         obs = entry.get("obs", "").strip()
         if obs:
             pdf.set_font("Helvetica", "I", 10)
             pdf.set_text_color(70, 100, 70)
             pdf.multi_cell(0, 6, f"Obs: {_safe(obs)}")
+
         pdf.set_text_color(30, 50, 28)
         pdf.ln(4)
 
@@ -492,7 +505,7 @@ with tabs[0]:
 
     if st.button("💾 Guardar en bitácora", key="save_liq"):
         st.session_state.bitacora.append({
-            "tipo": "💧 Líquidos",
+            "tipo": "Liquidos",
             "fecha": datetime.now().strftime("%d/%m %H:%M"),
             "lote": nombre_lote,
             "cultivo": cultivo,
@@ -686,7 +699,7 @@ with tabs[1]:
                 [f"{nombre_producto_final} {dosis_total_kgha:.2f} kg/ha"]
             )
             st.session_state.bitacora.append({
-                "tipo": "🌾 Sólidos",
+                "tipo": "Solidos",
                 "fecha": datetime.now().strftime("%d/%m %H:%M"),
                 "lote": sol_nombre,
                 "cultivo": sol_cultivo,
@@ -744,7 +757,7 @@ with tabs[4]:
 
     st.subheader("Bitácora de campaña")
 
-    # — Piloto de sesión (persiste en session_state) —
+    # — Piloto de sesión —
     st.session_state.piloto_sesion = st.text_input(
         "👤 Piloto / operador (se aplica a todos los registros de esta sesión)",
         value=st.session_state.piloto_sesion,
@@ -759,7 +772,7 @@ with tabs[4]:
         man_lote    = m1.text_input("Lote", key="man_lote")
         man_ha      = m1.number_input("Superficie (ha)", min_value=0.1, value=10.0, step=0.5, key="man_ha")
         man_cultivo = m2.selectbox("Cultivo", CULTIVOS, key="man_cultivo")
-        man_tipo    = m2.selectbox("Tipo", ["💧 Líquidos", "🌾 Sólidos", "Otro"], key="man_tipo")
+        man_tipo    = m2.selectbox("Tipo", ["Liquidos", "Solidos", "Otro"], key="man_tipo")
         man_prod    = st.text_input("Producto(s) y dosis (texto libre)", key="man_prod")
         man_obs     = st.text_area("Observaciones", key="man_obs", height=80)
 
@@ -782,7 +795,7 @@ with tabs[4]:
 
     st.divider()
 
-    # — Listado de registros —
+    # — Listado —
     if not st.session_state.bitacora:
         st.info("La bitácora está vacía. Guardá aplicaciones desde Líquidos o Sólidos, o agregá un registro manual.")
     else:
@@ -791,11 +804,17 @@ with tabs[4]:
 
         for idx, entry in enumerate(reversed(st.session_state.bitacora)):
             real_idx = len(st.session_state.bitacora) - 1 - idx
+            tipo_display = entry["tipo"]
+            if tipo_display == "Liquidos":
+                tipo_display = "💧 Líquidos"
+            elif tipo_display == "Solidos":
+                tipo_display = "🌾 Sólidos"
+
             css_class = "bit-manual" if entry["tipo"] == "Otro" else "bit-entry"
             productos_str = " · ".join(entry.get("productos", [])) or "—"
 
             with st.expander(
-                f"{entry['tipo']}  |  {entry['fecha']}  |  {entry['lote']}  ({entry['ha']} ha)  |  👤 {entry['piloto']}",
+                f"{tipo_display}  |  {entry['fecha']}  |  {entry['lote']}  ({entry['ha']} ha)  |  👤 {entry['piloto']}",
                 expanded=False
             ):
                 st.markdown(
