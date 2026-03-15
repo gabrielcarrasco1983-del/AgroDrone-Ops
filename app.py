@@ -3,7 +3,11 @@ import math
 from urllib.parse import quote
 from datetime import datetime
 
-st.set_page_config(page_title="AgroDrone Mixer", layout="wide")
+st.set_page_config(
+    page_title="AgroDrone Mixer",
+    page_icon="dronemixer.png",
+    layout="wide"
+)
 
 # -------------------------------------------------
 # GOOGLE ANALYTICS
@@ -148,6 +152,28 @@ button[data-baseweb="tab"] span {
     font-size: 1rem;
 }
 
+/* Header personalizado */
+.app-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+}
+.app-header h1 {
+    margin: 0 !important;
+    padding: 0 !important;
+    font-size: 2rem !important;
+    color: #1a3d18 !important;
+    font-weight: 800 !important;
+    line-height: 1.1 !important;
+}
+.app-header small {
+    font-size: 0.85rem !important;
+    color: #3a4f39 !important;
+    font-weight: 400 !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -246,10 +272,28 @@ if "receta_mezcla" not in st.session_state:
     st.session_state.receta_mezcla = [{"especie": "Rye Grass", "kgha": 0.0}]
 
 # -------------------------------------------------
-# TITULO
+# ENCABEZADO CON LOGO
 # -------------------------------------------------
 
-st.title("🚁 AGRODRONE MIXER")
+col_logo, col_titulo = st.columns([0.10, 0.90])
+with col_logo:
+    st.image("dronemixer.png", width=90)
+with col_titulo:
+    st.markdown(
+        """
+        <div style="padding-top:6px;">
+            <h1 style="margin:0; padding:0; color:#1a3d18; font-size:2rem; font-weight:800; line-height:1.1;">
+                AGRODRONE MIXER
+            </h1>
+            <small style="color:#3a4f39; font-size:0.85rem;">
+                Calculadora para pilotos de drones agrícolas
+            </small>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+st.markdown("<hr style='margin:8px 0 16px 0; border-color:#c8e6c9;'>", unsafe_allow_html=True)
 
 tabs = st.tabs([
     "🧪 Líquidos",
