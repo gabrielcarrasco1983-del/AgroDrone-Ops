@@ -2,6 +2,7 @@ import streamlit as st
 import math
 from urllib.parse import quote
 from datetime import datetime
+from fpdf import FPDF
 
 st.set_page_config(
     page_title="AgroDrone Mixer",
@@ -94,13 +95,23 @@ button[data-baseweb="tab"] span {
 }
 .total, .total * { color: #3a2e00 !important; }
 
-.hist {
-    background: #e0e0e0 !important;
-    padding: 12px;
-    border-radius: 6px;
-    margin-bottom: 8px;
+.bit-entry {
+    background: #eaf4e6 !important;
+    padding: 14px 16px;
+    border-left: 6px solid #2e7d32;
+    border-radius: 8px;
+    margin-bottom: 6px;
 }
-.hist, .hist * { color: #1c2b1a !important; }
+.bit-entry, .bit-entry * { color: #0d1f0c !important; }
+
+.bit-manual {
+    background: #e8f0fe !important;
+    padding: 14px 16px;
+    border-left: 6px solid #3c6bc9;
+    border-radius: 8px;
+    margin-bottom: 6px;
+}
+.bit-manual, .bit-manual * { color: #0d1b3e !important; }
 
 .alerta {
     background: #fff0b3 !important;
@@ -152,28 +163,6 @@ button[data-baseweb="tab"] span {
     font-size: 1rem;
 }
 
-/* Header personalizado */
-.app-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding-bottom: 8px;
-    margin-bottom: 4px;
-}
-.app-header h1 {
-    margin: 0 !important;
-    padding: 0 !important;
-    font-size: 2rem !important;
-    color: #1a3d18 !important;
-    font-weight: 800 !important;
-    line-height: 1.1 !important;
-}
-.app-header small {
-    font-size: 0.85rem !important;
-    color: #3a4f39 !important;
-    font-weight: 400 !important;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -202,7 +191,7 @@ ESPECIES_MEZCLA = [
 ]
 
 # -------------------------------------------------
-# FUNCIONES
+# FUNCIONES DE CÁLCULO
 # -------------------------------------------------
 
 def calcular_delta_t(temp: float, hum: float) -> float:
@@ -220,10 +209,8 @@ def calcular_mezcla_liquidos(hectareas, volumen_aplicacion, capacidad_mixer, pro
     litros_totales = hectareas * volumen_aplicacion
     mixers = litros_totales / capacidad_mixer
     hectareas_por_mixer = capacidad_mixer / volumen_aplicacion
-
     detalle = []
     total_productos = 0.0
-
     for p in productos:
         if p["dosis"] > 0 and p["nombre"].strip():
             cantidad_mixer = p["dosis"] * hectareas_por_mixer
@@ -236,9 +223,7 @@ def calcular_mezcla_liquidos(hectareas, volumen_aplicacion, capacidad_mixer, pro
                 "cantidad_mixer": cantidad_mixer,
                 "total_lote": total_lote,
             })
-
     agua_total = max(litros_totales - total_productos, 0.0)
-
     return {
         "litros_totales": litros_totales,
         "mixers": mixers,
@@ -250,13 +235,95 @@ def calcular_mezcla_liquidos(hectareas, volumen_aplicacion, capacidad_mixer, pro
 
 
 def calcular_solidos(hectareas, dosis_kgha):
-    kg_totales = hectareas * dosis_kgha
-    return round(kg_totales, 2)
+    return round(hectareas * dosis_kgha, 2)
 
 
 import math as _math
 def bolsas_necesarias(kg_totales, kg_bolsa):
     return _math.ceil(kg_totales / kg_bolsa)
+
+
+# -------------------------------------------------
+# FUNCIÓN PDF BITÁCORA
+# -------------------------------------------------
+
+def _safe(text: str) -> str:
+    """Normaliza texto para PDF (latin-1 safe)."""
+    repl = {
+        "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u",
+        "Á": "A", "É": "E", "Í": "I", "Ó": "O", "Ú": "U",
+        "ñ": "n", "Ñ": "N", "ü": "u", "Ü": "U",
+        "\u2019": "'", "\u201c": '"', "\u201d": '"',
+    }
+    for k, v in repl.items():
+        text = text.replace(k, v)
+    return text
+
+
+def generar_pdf_bitacora(bitacora: list) -> bytes:
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+
+    # Encabezado
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.set_text_color(26, 61, 24)
+    pdf.cell(0, 12, "AGRODRONE MIXER", ln=True, align="C")
+    pdf.set_font("Helvetica", "B", 13)
+    pdf.set_text_color(60, 90, 58)
+    pdf.cell(0, 8, "Bitacora de Campana", ln=True, align="C")
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(100, 120, 100)
+    pdf.cell(0, 6, f"Generado: {datetime.now().strftime('%d/%m/%Y %H:%M')}", ln=True, align="C")
+    pdf.ln(6)
+
+    if not bitacora:
+        pdf.set_font("Helvetica", "I", 11)
+        pdf.set_text_color(80, 80, 80)
+        pdf.cell(0, 10, "Sin registros en la bitacora.", ln=True, align="C")
+        return bytes(pdf.output())
+
+    for entry in bitacora:
+        pdf.set_fill_color(214, 237, 204)
+        pdf.set_text_color(13, 31, 12)
+        pdf.set_font("Helvetica", "B", 11)
+        tipo_s = _safe(entry.get("tipo", ""))
+        pdf.cell(
+            0, 9,
+            f"{tipo_s}   |   {entry.get('fecha', '')}   |   Piloto: {_safe(entry.get('piloto', '-'))}",
+            ln=True, fill=True
+        )
+        pdf.set_font("Helvetica", "", 10)
+        pdf.set_text_color(30, 50, 28)
+        pdf.cell(
+            0, 7,
+            f"Lote: {_safe(entry.get('lote', '-'))}   |   Cultivo: {_safe(entry.get('cultivo', '-'))}   |   {entry.get('ha', 0)} ha",
+            ln=True
+        )
+        for prod in entry.get("productos", []):
+            pdf.cell(6)
+            pdf.cell(0, 6, f"- {_safe(prod)}", ln=True)
+        obs = entry.get("obs", "").strip()
+        if obs:
+            pdf.set_font("Helvetica", "I", 10)
+            pdf.set_text_color(70, 100, 70)
+            pdf.multi_cell(0, 6, f"Obs: {_safe(obs)}")
+        pdf.set_text_color(30, 50, 28)
+        pdf.ln(4)
+
+    # Resumen final
+    pdf.set_fill_color(255, 243, 176)
+    pdf.set_text_color(58, 46, 0)
+    pdf.set_font("Helvetica", "B", 10)
+    total_ha = sum(e.get("ha", 0) for e in bitacora)
+    pdf.cell(
+        0, 9,
+        f"Total registros: {len(bitacora)}   |   Hectareas totales: {total_ha:.1f} ha",
+        ln=True, fill=True
+    )
+
+    return bytes(pdf.output())
+
 
 # -------------------------------------------------
 # SESSION STATE
@@ -265,11 +332,14 @@ def bolsas_necesarias(kg_totales, kg_bolsa):
 if "productos" not in st.session_state:
     st.session_state.productos = [{"nombre": "", "dosis": 0.0, "unidad": "L"}]
 
-if "historial" not in st.session_state:
-    st.session_state.historial = []
+if "bitacora" not in st.session_state:
+    st.session_state.bitacora = []
 
 if "receta_mezcla" not in st.session_state:
     st.session_state.receta_mezcla = [{"especie": "Rye Grass", "kgha": 0.0}]
+
+if "piloto_sesion" not in st.session_state:
+    st.session_state.piloto_sesion = ""
 
 # -------------------------------------------------
 # ENCABEZADO CON LOGO
@@ -300,7 +370,7 @@ tabs = st.tabs([
     "🌾 Sólidos",
     "🌡️ Delta-T",
     "🌦 Clima",
-    "📋 Historial",
+    "📓 Bitácora",
     "ℹ️ Sobre"
 ])
 
@@ -420,21 +490,21 @@ with tabs[0]:
         unsafe_allow_html=True
     )
 
-    if st.button("💾 Guardar en historial", key="save_liq"):
-        registro = {
+    if st.button("💾 Guardar en bitácora", key="save_liq"):
+        st.session_state.bitacora.append({
             "tipo": "💧 Líquidos",
             "fecha": datetime.now().strftime("%d/%m %H:%M"),
             "lote": nombre_lote,
             "cultivo": cultivo,
             "ha": hectareas,
-            "mixers": round(res["mixers"], 2),
+            "piloto": st.session_state.piloto_sesion or "-",
             "productos": [
                 f"{p['nombre']} {p['dosis']:.2f} {p['unidad']}/ha"
                 for p in res["detalle"]
             ],
-        }
-        st.session_state.historial.append(registro)
-        st.success("✅ Guardado en historial")
+            "obs": "",
+        })
+        st.success("✅ Guardado en bitácora")
 
 # =================================================
 # TAB 2 — SÓLIDOS
@@ -582,24 +652,17 @@ with tabs[1]:
         resumen_html += "</div>"
         st.markdown(resumen_html, unsafe_allow_html=True)
 
-        # -------------------------------------------------
-        # WHATSAPP SÓLIDOS
-        # -------------------------------------------------
-
-        lineas_wa = [f"*ORDEN APLICACION DRON - SÓLIDOS*"]
+        lineas_wa = ["*ORDEN APLICACION DRON - SÓLIDOS*"]
         lineas_wa.append(f"Lote: {sol_nombre}")
         lineas_wa.append(f"Cultivo: {sol_cultivo}")
         lineas_wa.append(f"Superficie: {sol_ha} ha")
         lineas_wa.append(f"Velocidad: {sol_velocidad} km/h")
         lineas_wa.append(f"Altura: {sol_altura} m")
         lineas_wa.append(f"Producto: {nombre_producto_final}")
-
         if receta_lineas:
             lineas_wa.extend(receta_lineas)
-
         lineas_wa.append(f"Dosis total: {dosis_total_kgha:.2f} kg/ha")
         lineas_wa.append(f"Total: {kg_totales:.0f} kg")
-
         if presentacion == "Bolsas" and kg_bolsa and kg_bolsa > 0:
             n_bolsas = bolsas_necesarias(kg_totales, kg_bolsa)
             lineas_wa.append(f"Presentación: Bolsas {kg_bolsa:.0f} kg")
@@ -615,18 +678,24 @@ with tabs[1]:
             unsafe_allow_html=True
         )
 
-        if st.button("💾 Guardar en historial", key="save_sol"):
-            registro = {
+        if st.button("💾 Guardar en bitácora", key="save_sol"):
+            prods_registro = (
+                [f"{e['especie']}: {e['kgha']:.2f} kg/ha"
+                 for e in st.session_state.receta_mezcla if e["kgha"] > 0]
+                if receta_lineas else
+                [f"{nombre_producto_final} {dosis_total_kgha:.2f} kg/ha"]
+            )
+            st.session_state.bitacora.append({
                 "tipo": "🌾 Sólidos",
                 "fecha": datetime.now().strftime("%d/%m %H:%M"),
                 "lote": sol_nombre,
                 "cultivo": sol_cultivo,
                 "ha": sol_ha,
-                "mixers": "-",
-                "productos": [f"{nombre_producto_final} {dosis_total_kgha:.2f} kg/ha"],
-            }
-            st.session_state.historial.append(registro)
-            st.success("✅ Guardado en historial")
+                "piloto": st.session_state.piloto_sesion or "-",
+                "productos": prods_registro,
+                "obs": "",
+            })
+            st.success("✅ Guardado en bitácora")
     else:
         st.info("Ingresá la dosis para ver los resultados.")
 
@@ -668,36 +737,109 @@ with tabs[3]:
     st.markdown('<a class="btn-clima" href="https://www.swpc.noaa.gov/products/planetary-k-index" target="_blank">🛰️ Índice KP NOAA (GPS)</a>', unsafe_allow_html=True)
 
 # =================================================
-# TAB 5 — HISTORIAL
+# TAB 5 — BITÁCORA
 # =================================================
 
 with tabs[4]:
 
-    st.subheader("Aplicaciones guardadas")
+    st.subheader("Bitácora de campaña")
 
-    if not st.session_state.historial:
-        st.info("Todavía no hay aplicaciones guardadas en esta sesión.")
+    # — Piloto de sesión (persiste en session_state) —
+    st.session_state.piloto_sesion = st.text_input(
+        "👤 Piloto / operador (se aplica a todos los registros de esta sesión)",
+        value=st.session_state.piloto_sesion,
+        key="piloto_input"
+    )
+
+    st.divider()
+
+    # — Entrada manual —
+    with st.expander("✍️ Agregar registro manual", expanded=False):
+        m1, m2 = st.columns(2)
+        man_lote    = m1.text_input("Lote", key="man_lote")
+        man_ha      = m1.number_input("Superficie (ha)", min_value=0.1, value=10.0, step=0.5, key="man_ha")
+        man_cultivo = m2.selectbox("Cultivo", CULTIVOS, key="man_cultivo")
+        man_tipo    = m2.selectbox("Tipo", ["💧 Líquidos", "🌾 Sólidos", "Otro"], key="man_tipo")
+        man_prod    = st.text_input("Producto(s) y dosis (texto libre)", key="man_prod")
+        man_obs     = st.text_area("Observaciones", key="man_obs", height=80)
+
+        if st.button("➕ Agregar a bitácora", key="add_manual"):
+            if man_lote.strip():
+                st.session_state.bitacora.append({
+                    "tipo": man_tipo,
+                    "fecha": datetime.now().strftime("%d/%m %H:%M"),
+                    "lote": man_lote,
+                    "cultivo": man_cultivo,
+                    "ha": man_ha,
+                    "piloto": st.session_state.piloto_sesion or "-",
+                    "productos": [man_prod] if man_prod.strip() else [],
+                    "obs": man_obs,
+                })
+                st.success("✅ Registro agregado")
+                st.rerun()
+            else:
+                st.warning("Ingresá al menos el nombre del lote.")
+
+    st.divider()
+
+    # — Listado de registros —
+    if not st.session_state.bitacora:
+        st.info("La bitácora está vacía. Guardá aplicaciones desde Líquidos o Sólidos, o agregá un registro manual.")
     else:
-        if st.button("🗑️ Limpiar historial"):
-            st.session_state.historial = []
-            st.rerun()
+        total_ha_bit = sum(e.get("ha", 0) for e in st.session_state.bitacora)
+        st.caption(f"**{len(st.session_state.bitacora)} registros** · **{total_ha_bit:.1f} ha** totales en esta sesión")
 
-        for reg in reversed(st.session_state.historial):
-            productos_str = " | ".join(reg.get("productos", []))
-            mixers_str = f"{reg['mixers']} mixers" if reg['mixers'] != "-" else "sólidos"
-            st.markdown(
-                f"""
-                <div class="hist">
-                {reg['tipo']} &nbsp;|&nbsp;
-                📅 {reg['fecha']} &nbsp;|&nbsp;
-                🌾 {reg['lote']} ({reg.get('cultivo', '-')}) &nbsp;|&nbsp;
-                {reg['ha']} ha &nbsp;|&nbsp;
-                {mixers_str}<br>
-                <small>🧪 {productos_str}</small>
-                </div>
-                """,
-                unsafe_allow_html=True
+        for idx, entry in enumerate(reversed(st.session_state.bitacora)):
+            real_idx = len(st.session_state.bitacora) - 1 - idx
+            css_class = "bit-manual" if entry["tipo"] == "Otro" else "bit-entry"
+            productos_str = " · ".join(entry.get("productos", [])) or "—"
+
+            with st.expander(
+                f"{entry['tipo']}  |  {entry['fecha']}  |  {entry['lote']}  ({entry['ha']} ha)  |  👤 {entry['piloto']}",
+                expanded=False
+            ):
+                st.markdown(
+                    f"""
+                    <div class="{css_class}">
+                    <b>Cultivo:</b> {entry['cultivo']}<br>
+                    <b>Productos:</b> {productos_str}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+
+                nueva_obs = st.text_area(
+                    "📝 Observaciones",
+                    value=entry.get("obs", ""),
+                    key=f"obs_edit_{real_idx}",
+                    height=80
+                )
+                col_save_obs, col_del = st.columns([0.75, 0.25])
+                if col_save_obs.button("💾 Guardar obs", key=f"save_obs_{real_idx}"):
+                    st.session_state.bitacora[real_idx]["obs"] = nueva_obs
+                    st.success("Observación guardada")
+                    st.rerun()
+                if col_del.button("🗑️ Eliminar entrada", key=f"del_entry_{real_idx}"):
+                    st.session_state.bitacora.pop(real_idx)
+                    st.rerun()
+
+        st.divider()
+
+        col_pdf, col_clear = st.columns([0.7, 0.3])
+        with col_pdf:
+            pdf_bytes = generar_pdf_bitacora(st.session_state.bitacora)
+            nombre_pdf = f"bitacora_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+            st.download_button(
+                label="📄 Descargar bitácora en PDF",
+                data=pdf_bytes,
+                file_name=nombre_pdf,
+                mime="application/pdf",
+                use_container_width=True
             )
+        with col_clear:
+            if st.button("🗑️ Limpiar bitácora", use_container_width=True):
+                st.session_state.bitacora = []
+                st.rerun()
 
 # =================================================
 # TAB 6 — SOBRE
@@ -717,7 +859,7 @@ Aplicación diseñada para pilotos de drones agrícolas.
 - Cálculo de bolsas necesarias por lote
 - Envío de orden por WhatsApp
 - Delta-T para condiciones ambientales
-- Historial de aplicaciones por sesión
+- Bitácora de campaña con exportación PDF
 - Acceso rápido a clima y GPS
 """)
 
