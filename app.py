@@ -113,6 +113,46 @@ button[data-baseweb="tab"] span {
 }
 .bit-manual, .bit-manual * { color: #0d1b3e !important; }
 
+.semaforo-apto {
+    background: #d6edcc !important;
+    border-left: 10px solid #2e7d32;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 12px;
+}
+.semaforo-apto * { color: #0d1f0c !important; }
+
+.semaforo-precaucion {
+    background: #fff3b0 !important;
+    border-left: 10px solid #c49a00;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 12px;
+}
+.semaforo-precaucion * { color: #3a2e00 !important; }
+
+.semaforo-no-apto {
+    background: #fde8e8 !important;
+    border-left: 10px solid #c62828;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 12px;
+}
+.semaforo-no-apto * { color: #4a0000 !important; }
+
+.condiciones-fijadas {
+    background: #e8f5e9 !important;
+    padding: 10px 14px;
+    border-radius: 6px;
+    border: 1px solid #a5d6a7;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+.condiciones-fijadas * { color: #1b5e20 !important; }
+
 .alerta {
     background: #fff0b3 !important;
     padding: 12px;
@@ -190,6 +230,8 @@ ESPECIES_MEZCLA = [
     "Melilotus", "Cebadilla", "Agropiro", "Pasto ovillo", "Otro"
 ]
 
+DIRECCIONES_VIENTO = ["N", "NE", "E", "SE", "S", "SO", "O", "NO", "Variable"]
+
 # -------------------------------------------------
 # FUNCIONES DE CÁLCULO
 # -------------------------------------------------
@@ -203,6 +245,46 @@ def calcular_delta_t(temp: float, hum: float) -> float:
         - 4.686035
     )
     return round(temp - tw, 2)
+
+
+def evaluar_semaforo(delta_t: float, viento: float) -> dict:
+    """
+    Devuelve estado, clase CSS, etiqueta y razón del semáforo unificado.
+    Criterios:
+      - Viento > 25 km/h → NO APTO (deriva severa)
+      - Viento > 15 km/h + Delta-T fuera de rango → NO APTO
+      - Delta-T < 2 → NO APTO (inversión térmica)
+      - Delta-T > 10 → NO APTO (evaporación excesiva)
+      - Viento > 15 km/h pero Delta-T OK → PRECAUCIÓN
+      - Delta-T 2–4 o 8–10 → PRECAUCIÓN
+      - Delta-T 4–8 y viento ≤ 15 → APTO
+    """
+    razones = []
+
+    if viento > 25:
+        razones.append(f"Viento {viento:.0f} km/h: riesgo de deriva severa")
+        return {"estado": "NO APTO", "css": "semaforo-no-apto", "icono": "🔴", "razones": razones}
+
+    if delta_t < 2:
+        razones.append(f"Delta-T {delta_t} °C: riesgo de inversión térmica")
+    if delta_t > 10:
+        razones.append(f"Delta-T {delta_t} °C: evaporación excesiva")
+    if viento > 15:
+        razones.append(f"Viento {viento:.0f} km/h: precaución por deriva")
+
+    if delta_t < 2 or delta_t > 10:
+        return {"estado": "NO APTO", "css": "semaforo-no-apto", "icono": "🔴", "razones": razones}
+
+    if viento > 15 or delta_t < 4 or delta_t > 8:
+        if not razones:
+            if delta_t < 4:
+                razones.append(f"Delta-T {delta_t} °C: condición límite baja")
+            elif delta_t > 8:
+                razones.append(f"Delta-T {delta_t} °C: condición límite alta")
+        return {"estado": "PRECAUCIÓN", "css": "semaforo-precaucion", "icono": "⚠️", "razones": razones}
+
+    razones.append("Delta-T y viento dentro del rango óptimo")
+    return {"estado": "APTO", "css": "semaforo-apto", "icono": "✅", "razones": razones}
 
 
 def calcular_mezcla_liquidos(hectareas, volumen_aplicacion, capacidad_mixer, productos):
@@ -243,6 +325,18 @@ def bolsas_necesarias(kg_totales, kg_bolsa):
     return _math.ceil(kg_totales / kg_bolsa)
 
 
+def condiciones_str(cond: dict) -> str:
+    """Devuelve string resumido de condiciones para mostrar en bitácora."""
+    if not cond:
+        return "Sin condiciones registradas"
+    return (
+        f"{cond['temp']}°C · {cond['hum']}% HR · "
+        f"Delta-T {cond['delta_t']} °C · "
+        f"Viento {cond['viento']} km/h {cond['dir_viento']} · "
+        f"{cond['icono']} {cond['estado']}"
+    )
+
+
 # -------------------------------------------------
 # FUNCIÓN PDF BITÁCORA
 # -------------------------------------------------
@@ -257,7 +351,6 @@ def _safe(text: str) -> str:
     }
     for k, v in repl.items():
         text = text.replace(k, v)
-    # Descarta silenciosamente emojis y cualquier símbolo fuera de latin-1
     return text.encode("latin-1", errors="ignore").decode("latin-1")
 
 
@@ -285,15 +378,11 @@ def generar_pdf_bitacora(bitacora: list) -> bytes:
         return bytes(pdf.output())
 
     for entry in bitacora:
-        # Tipo sin emojis para el PDF
-        tipo_raw = entry.get("tipo", "")
-        if "Liquid" in tipo_raw or "Liquid" in tipo_raw:
-            tipo_label = "Liquidos"
-        elif "lidos" in tipo_raw:
-            tipo_label = "Solidos"
-        else:
-            tipo_label = _safe(tipo_raw)
+        tipo_label = "Liquidos" if entry.get("tipo") == "Liquidos" else (
+            "Solidos" if entry.get("tipo") == "Solidos" else _safe(entry.get("tipo", ""))
+        )
 
+        # Cabecera entrada
         pdf.set_fill_color(214, 237, 204)
         pdf.set_text_color(13, 31, 12)
         pdf.set_font("Helvetica", "B", 11)
@@ -303,6 +392,7 @@ def generar_pdf_bitacora(bitacora: list) -> bytes:
             ln=True, fill=True
         )
 
+        # Lote / cultivo / ha
         pdf.set_font("Helvetica", "", 10)
         pdf.set_text_color(30, 50, 28)
         pdf.cell(
@@ -311,10 +401,26 @@ def generar_pdf_bitacora(bitacora: list) -> bytes:
             ln=True
         )
 
+        # Productos
         for prod in entry.get("productos", []):
             pdf.cell(6)
             pdf.cell(0, 6, f"- {_safe(prod)}", ln=True)
 
+        # Condiciones ambientales
+        cond = entry.get("condiciones")
+        if cond:
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_text_color(26, 61, 24)
+            pdf.set_fill_color(232, 245, 233)
+            cond_texto = (
+                f"Condiciones: {cond['temp']}C  {cond['hum']}% HR  "
+                f"Delta-T {cond['delta_t']}C  "
+                f"Viento {cond['viento']} km/h {cond['dir_viento']}  "
+                f"[ {cond['estado']} ]"
+            )
+            pdf.cell(0, 7, _safe(cond_texto), ln=True, fill=True)
+
+        # Observaciones
         obs = entry.get("obs", "").strip()
         if obs:
             pdf.set_font("Helvetica", "I", 10)
@@ -324,7 +430,7 @@ def generar_pdf_bitacora(bitacora: list) -> bytes:
         pdf.set_text_color(30, 50, 28)
         pdf.ln(4)
 
-    # Resumen final
+    # Totales
     pdf.set_fill_color(255, 243, 176)
     pdf.set_text_color(58, 46, 0)
     pdf.set_font("Helvetica", "B", 10)
@@ -354,6 +460,10 @@ if "receta_mezcla" not in st.session_state:
 if "piloto_sesion" not in st.session_state:
     st.session_state.piloto_sesion = ""
 
+# Condiciones ambientales fijadas para la sesión
+if "condiciones_sesion" not in st.session_state:
+    st.session_state.condiciones_sesion = None
+
 # -------------------------------------------------
 # ENCABEZADO CON LOGO
 # -------------------------------------------------
@@ -377,6 +487,22 @@ with col_titulo:
     )
 
 st.markdown("<hr style='margin:8px 0 16px 0; border-color:#c8e6c9;'>", unsafe_allow_html=True)
+
+# Mostrar condiciones fijadas en el encabezado global si existen
+if st.session_state.condiciones_sesion:
+    cond = st.session_state.condiciones_sesion
+    st.markdown(
+        f"""
+        <div class="condiciones-fijadas">
+        🌡️ <b>Condiciones fijadas:</b>
+        {cond['temp']}°C · {cond['hum']}% HR ·
+        Delta-T <b>{cond['delta_t']} °C</b> ·
+        🌬️ {cond['viento']} km/h {cond['dir_viento']} ·
+        {cond['icono']} <b>{cond['estado']}</b>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 tabs = st.tabs([
     "🧪 Líquidos",
@@ -481,6 +607,15 @@ with tabs[0]:
         for p in res["detalle"]
     ]
 
+    cond_wa = ""
+    if st.session_state.condiciones_sesion:
+        c = st.session_state.condiciones_sesion
+        cond_wa = (
+            f"\n\n--- CONDICIONES AMBIENTALES ---\n"
+            f"Temp: {c['temp']}°C | HR: {c['hum']}% | Delta-T: {c['delta_t']} °C\n"
+            f"Viento: {c['viento']} km/h {c['dir_viento']} | {c['icono']} {c['estado']}"
+        )
+
     msg_liq = (
         f"*ORDEN APLICACION DRON - LÍQUIDOS*\n"
         f"Lote: {nombre_lote}\n"
@@ -495,6 +630,7 @@ with tabs[0]:
         + "\n\n--- TOTAL LOTE ---\n"
         + "\n".join(wa_total)
         + f"\nAgua total: {res['agua_total']:.2f} L"
+        + cond_wa
     )
 
     st.markdown(
@@ -515,6 +651,7 @@ with tabs[0]:
                 f"{p['nombre']} {p['dosis']:.2f} {p['unidad']}/ha"
                 for p in res["detalle"]
             ],
+            "condiciones": st.session_state.condiciones_sesion,
             "obs": "",
         })
         st.success("✅ Guardado en bitácora")
@@ -576,10 +713,6 @@ with tabs[1]:
     else:
         nombre_producto_final = st.text_input("Nombre del producto", key="sol_otro_nombre")
 
-    # -------------------------------------------------
-    # RECETA MEZCLA DE PASTURAS
-    # -------------------------------------------------
-
     receta_lineas = []
 
     if es_mezcla:
@@ -616,7 +749,6 @@ with tabs[1]:
             f"  - {e['especie']}: {e['kgha']:.2f} kg/ha"
             for e in st.session_state.receta_mezcla if e["kgha"] > 0
         ]
-
         st.markdown(f"**Dosis total mezcla: {dosis_total_kgha:.2f} kg/ha**")
 
     else:
@@ -625,11 +757,6 @@ with tabs[1]:
         )
 
     st.divider()
-
-    # -------------------------------------------------
-    # PRESENTACIÓN
-    # -------------------------------------------------
-
     st.subheader("Presentación")
 
     presentacion = st.radio(
@@ -646,10 +773,6 @@ with tabs[1]:
         )
 
     st.divider()
-
-    # -------------------------------------------------
-    # RESULTADOS SÓLIDOS
-    # -------------------------------------------------
 
     kg_totales = calcular_solidos(sol_ha, dosis_total_kgha)
 
@@ -683,6 +806,14 @@ with tabs[1]:
         else:
             lineas_wa.append("Presentación: Granel / Tolva")
 
+        if st.session_state.condiciones_sesion:
+            c = st.session_state.condiciones_sesion
+            lineas_wa.append(
+                f"\n--- CONDICIONES AMBIENTALES ---\n"
+                f"Temp: {c['temp']}°C | HR: {c['hum']}% | Delta-T: {c['delta_t']} °C\n"
+                f"Viento: {c['viento']} km/h {c['dir_viento']} | {c['icono']} {c['estado']}"
+            )
+
         msg_sol = "\n".join(lineas_wa)
 
         st.markdown(
@@ -706,6 +837,7 @@ with tabs[1]:
                 "ha": sol_ha,
                 "piloto": st.session_state.piloto_sesion or "-",
                 "productos": prods_registro,
+                "condiciones": st.session_state.condiciones_sesion,
                 "obs": "",
             })
             st.success("✅ Guardado en bitácora")
@@ -713,29 +845,81 @@ with tabs[1]:
         st.info("Ingresá la dosis para ver los resultados.")
 
 # =================================================
-# TAB 3 — DELTA T
+# TAB 3 — DELTA-T
 # =================================================
 
 with tabs[2]:
 
     st.subheader("Condiciones ambientales")
+    st.caption("Completá los datos y fijá las condiciones para que queden registradas en cada aplicación.")
 
-    col_t, col_h = st.columns(2)
-    temp = col_t.number_input("Temperatura (°C)", value=25.0, step=0.5)
-    hum = col_h.number_input("Humedad relativa (%)", value=60.0, step=1.0, min_value=1.0, max_value=100.0)
+    d1, d2 = st.columns(2)
+    with d1:
+        dt_temp  = st.number_input("🌡️ Temperatura (°C)", value=25.0, step=0.5, key="dt_temp")
+        dt_hum   = st.number_input("💧 Humedad relativa (%)", value=60.0, step=1.0,
+                                    min_value=1.0, max_value=100.0, key="dt_hum")
+    with d2:
+        dt_viento = st.number_input("🌬️ Velocidad del viento (km/h)", value=10.0,
+                                     min_value=0.0, step=0.5, key="dt_viento")
+        dt_dir    = st.selectbox("Dirección del viento", DIRECCIONES_VIENTO, key="dt_dir")
 
-    dt = calcular_delta_t(temp, hum)
-    st.metric("Delta T", f"{dt} °C")
-
-    if 2 <= dt <= 8:
-        st.success("✅ Condiciones óptimas para aplicar")
-    elif dt < 2:
-        st.warning("⚠️ Riesgo de deriva — humedad muy alta")
-    else:
-        st.error("🔴 Evaporación alta — condiciones no recomendadas")
+    # Cálculo en tiempo real
+    dt_valor = calcular_delta_t(dt_temp, dt_hum)
+    semaforo = evaluar_semaforo(dt_valor, dt_viento)
 
     st.divider()
-    st.caption("Delta-T = diferencia entre temperatura del aire y temperatura de bulbo húmedo. Rango ideal: 2 a 8 °C.")
+
+    # Métricas
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Delta-T", f"{dt_valor} °C", help="Rango óptimo: 2–8 °C")
+    m2.metric("Viento", f"{dt_viento:.0f} km/h {dt_dir}")
+    m3.metric("Estado", f"{semaforo['icono']} {semaforo['estado']}")
+
+    # Semáforo
+    razones_html = "<br>".join(f"• {r}" for r in semaforo["razones"])
+    st.markdown(
+        f"""
+        <div class="{semaforo['css']}">
+            <div style="font-size:2.2rem; font-weight:900;">{semaforo['icono']} {semaforo['estado']}</div>
+            <div style="margin-top:8px; font-size:0.95rem;">{razones_html}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Botón fijar
+    if st.button("📌 Fijar condiciones de sesión", key="fijar_condiciones"):
+        st.session_state.condiciones_sesion = {
+            "temp": dt_temp,
+            "hum": dt_hum,
+            "delta_t": dt_valor,
+            "viento": dt_viento,
+            "dir_viento": dt_dir,
+            "estado": semaforo["estado"],
+            "icono": semaforo["icono"],
+            "fijado_a": datetime.now().strftime("%d/%m %H:%M"),
+        }
+        st.success(f"✅ Condiciones fijadas a las {st.session_state.condiciones_sesion['fijado_a']} — se incluirán en cada registro de bitácora")
+
+    if st.session_state.condiciones_sesion:
+        c = st.session_state.condiciones_sesion
+        st.markdown(
+            f"""
+            <div class="condiciones-fijadas">
+            📌 <b>Fijadas a las {c['fijado_a']}:</b>
+            {c['temp']}°C · {c['hum']}% HR · Delta-T {c['delta_t']} °C ·
+            🌬️ {c['viento']} km/h {c['dir_viento']} ·
+            {c['icono']} <b>{c['estado']}</b>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+        if st.button("🗑️ Limpiar condiciones fijadas", key="limpiar_cond"):
+            st.session_state.condiciones_sesion = None
+            st.rerun()
+
+    st.divider()
+    st.caption("Delta-T = temperatura del aire − temperatura de bulbo húmedo. Rango óptimo: 2–8 °C. Viento óptimo: < 15 km/h.")
 
 # =================================================
 # TAB 4 — CLIMA
@@ -757,7 +941,6 @@ with tabs[4]:
 
     st.subheader("Bitácora de campaña")
 
-    # — Piloto de sesión —
     st.session_state.piloto_sesion = st.text_input(
         "👤 Piloto / operador (se aplica a todos los registros de esta sesión)",
         value=st.session_state.piloto_sesion,
@@ -766,7 +949,6 @@ with tabs[4]:
 
     st.divider()
 
-    # — Entrada manual —
     with st.expander("✍️ Agregar registro manual", expanded=False):
         m1, m2 = st.columns(2)
         man_lote    = m1.text_input("Lote", key="man_lote")
@@ -786,6 +968,7 @@ with tabs[4]:
                     "ha": man_ha,
                     "piloto": st.session_state.piloto_sesion or "-",
                     "productos": [man_prod] if man_prod.strip() else [],
+                    "condiciones": st.session_state.condiciones_sesion,
                     "obs": man_obs,
                 })
                 st.success("✅ Registro agregado")
@@ -795,7 +978,6 @@ with tabs[4]:
 
     st.divider()
 
-    # — Listado —
     if not st.session_state.bitacora:
         st.info("La bitácora está vacía. Guardá aplicaciones desde Líquidos o Sólidos, o agregá un registro manual.")
     else:
@@ -804,14 +986,23 @@ with tabs[4]:
 
         for idx, entry in enumerate(reversed(st.session_state.bitacora)):
             real_idx = len(st.session_state.bitacora) - 1 - idx
-            tipo_display = entry["tipo"]
-            if tipo_display == "Liquidos":
-                tipo_display = "💧 Líquidos"
-            elif tipo_display == "Solidos":
-                tipo_display = "🌾 Sólidos"
-
+            tipo_display = "💧 Líquidos" if entry["tipo"] == "Liquidos" else (
+                "🌾 Sólidos" if entry["tipo"] == "Solidos" else entry["tipo"]
+            )
             css_class = "bit-manual" if entry["tipo"] == "Otro" else "bit-entry"
             productos_str = " · ".join(entry.get("productos", [])) or "—"
+
+            cond = entry.get("condiciones")
+            cond_html = ""
+            if cond:
+                cond_html = (
+                    f"<br><small>🌡️ {cond['temp']}°C · 💧 {cond['hum']}% HR · "
+                    f"Delta-T {cond['delta_t']} °C · "
+                    f"🌬️ {cond['viento']} km/h {cond['dir_viento']} · "
+                    f"{cond['icono']} <b>{cond['estado']}</b></small>"
+                )
+            else:
+                cond_html = "<br><small>⚪ Sin condiciones registradas</small>"
 
             with st.expander(
                 f"{tipo_display}  |  {entry['fecha']}  |  {entry['lote']}  ({entry['ha']} ha)  |  👤 {entry['piloto']}",
@@ -822,6 +1013,7 @@ with tabs[4]:
                     <div class="{css_class}">
                     <b>Cultivo:</b> {entry['cultivo']}<br>
                     <b>Productos:</b> {productos_str}
+                    {cond_html}
                     </div>
                     """,
                     unsafe_allow_html=True
@@ -876,9 +1068,9 @@ Aplicación diseñada para pilotos de drones agrícolas.
 - Calculadora de sólidos: semillas y fertilizantes
 - Constructor de receta para mezclas de pasturas
 - Cálculo de bolsas necesarias por lote
-- Envío de orden por WhatsApp
-- Delta-T para condiciones ambientales
-- Bitácora de campaña con exportación PDF
+- Envío de orden por WhatsApp con condiciones ambientales
+- Delta-T + viento: semáforo unificado de aptitud para aplicar
+- Bitácora de campaña con condiciones por registro y exportación PDF
 - Acceso rápido a clima y GPS
 """)
 
